@@ -19,10 +19,11 @@ parse = Text.Parsec.parse parseProgram ""
 
 -- | Parses the program as a whole (i.e. a whole file).
 parseProgram :: Parser Program
-parseProgram = liftM Program $ parseToplevel `endBy` toplevelDelimiter
-  where
-    toplevelDelimiter = spaces >> char '.' >> spaces >> skipMany comment >> spaces
-    comment = string "{-" >> manyTill anyChar (try (string "-}"))
+parseProgram = do
+  skipMany comment
+  liftM Program $ parseToplevel `endBy` toplevelDelimiter
+    where
+      toplevelDelimiter = spaces >> char '.' >> spaces >> skipMany comment >> spaces
 
 -- | Parses toplevel constructs.
 parseToplevel :: Parser Toplevel
@@ -31,23 +32,62 @@ parseToplevel = parseType <|> parseFunc <|> parsePrint
 -- | Parses a type declaration.
 parseType :: Parser Toplevel
 parseType = do
-  _ <- string "type"
-  _ <- spaces
+  string "type"
+  spaces
   typeId <- many letter
-  _ <- spaces
-  _ <- char ':'
-  _ <- spaces
-  signature <- string "Type"
-  return $ Type (TypeId typeId) (Signature [TypeId signature])
+  spaces
+  char ':'
+  spaces
+  signature <- parseSignature
+  constructors <- parseConstructors
+  return $ Type (TypeId typeId) signature constructors
 
 -- | Parses a function declaration.
 parseFunc :: Parser Toplevel
 parseFunc = do
-  _ <- string "func"
-  return $ Func (Id "func") (Signature [TypeId "Nat"])
+  string "func"
+  spaces
+  funcId <- many letter
+  spaces
+  char ':'
+  spaces
+  signature <- many letter
+  spaces
+  string "where"
+  return $ Func (Id funcId) (Signature [TypeId signature])
 
 -- | Parses a print declaration.
 parsePrint :: Parser Toplevel
 parsePrint = do
-  _ <- string "print"
+  string "print"
   return $ Print
+
+parseSignature :: Parser Signature
+parseSignature = do
+  types <- many letter `sepBy1` signatureDelimiter
+  return $ Signature (map TypeId types)
+    where
+      signatureDelimiter = try (spaces >> string "->" >> spaces)
+
+parseConstructors :: Parser [Constructor]
+parseConstructors = option [] parseConstructor'
+  where
+    constructorDelimiter = spaces >> char ';' >> spaces
+    parseConstructor' = do
+      spaces
+      string "where"
+      spaces
+      parseConstructor `sepBy` constructorDelimiter
+
+parseConstructor :: Parser Constructor
+parseConstructor = do
+  constructorId <- many letter
+  spaces
+  char ':'
+  spaces
+  signature <- parseSignature
+  return $ Constructor (Id constructorId) signature
+
+-- | Parses a comment.
+comment :: Parser ()
+comment = string "{-" >> manyTill anyChar (try (string "-}")) >> spaces

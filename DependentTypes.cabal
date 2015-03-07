@@ -19,6 +19,8 @@ library
   build-depends:      base >=4.7 && <4.8,
                       parsec >=3.1 && <3.2
   default-language:   Haskell2010
+  exposed-modules:    DependentTypes.Data,
+                      DependentTypes.Parser
   ghc-options:        -Wall
   hs-source-dirs:     src/lib
 

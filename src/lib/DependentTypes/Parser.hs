@@ -51,10 +51,11 @@ parseFunc = do
   spaces
   char ':'
   spaces
-  signature <- many letter
+  signature <- parseSignature
   spaces
   string "where"
-  return $ Func (Id funcId) (Signature [TypeId signature])
+  lambdas <- parseLambdas funcId
+  return $ Func (Id funcId) signature lambdas
 
 -- | Parses a print declaration.
 parsePrint :: Parser Toplevel
@@ -62,6 +63,7 @@ parsePrint = do
   string "print"
   return $ Print
 
+-- | Parses a type signature.
 parseSignature :: Parser Signature
 parseSignature = do
   types <- many letter `sepBy1` signatureDelimiter
@@ -69,6 +71,7 @@ parseSignature = do
     where
       signatureDelimiter = try (spaces >> string "->" >> spaces)
 
+-- | Parses a list of constructors for a type.
 parseConstructors :: Parser [Constructor]
 parseConstructors = option [] parseConstructor'
   where
@@ -79,6 +82,7 @@ parseConstructors = option [] parseConstructor'
       spaces
       parseConstructor `sepBy` constructorDelimiter
 
+-- | Parses a constructor for a type.
 parseConstructor :: Parser Constructor
 parseConstructor = do
   constructorId <- many letter
@@ -87,6 +91,52 @@ parseConstructor = do
   spaces
   signature <- parseSignature
   return $ Constructor (Id constructorId) signature
+
+parseLambdas :: String -> Parser [Lambda]
+parseLambdas func = parseLambda func `sepBy1` lambdaDelimiter
+  where
+    lambdaDelimiter = try (spaces >> char ';' >> spaces)
+
+parseLambda :: String -> Parser Lambda
+parseLambda func = do
+  spaces
+  _ <- string func
+  args <- parseArgs
+  spaces
+  char '='
+  spaces
+  exp <- parseExpression
+  return $ Lambda args exp
+
+parseArgs :: Parser Args
+parseArgs = do
+  spaces
+  liftM Args $ parseArg `sepBy` argDelimiter
+    where
+      argDelimiter = try (many1 space >> noneOf "=")
+
+parseArg :: Parser Expression
+parseArg = parseSimpleExpression <|> parseParenthesisExpression
+
+parseExpression :: Parser Expression
+parseExpression = parseComposeExpression <|> parseParenthesisExpression
+
+parseSimpleExpression :: Parser Expression
+parseSimpleExpression = do
+  expId <- many1 letter
+  return $ ExpId (Id expId)
+
+parseComposeExpression :: Parser Expression
+parseComposeExpression = do
+  liftM ExpList $ (parseSimpleExpression <|> parseParenthesisExpression)
+                    `sepBy` try (many1 space)
+
+parseParenthesisExpression :: Parser Expression
+parseParenthesisExpression = do
+  char '('
+  exp <- parseComposeExpression
+  char ')'
+  return exp
 
 -- | Parses a comment.
 comment :: Parser ()

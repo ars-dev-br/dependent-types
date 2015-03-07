@@ -4,8 +4,11 @@ Description: Data types used by the library.
 -}
 
 module DependentTypes.Data
-       ( Constructor (..)
+       ( Args (..)
+       , Constructor (..)
+       , Expression (..)
        , Id (..)
+       , Lambda (..)
        , Program (..)
        , Signature (..)
        , Toplevel (..)
@@ -39,12 +42,24 @@ data Program = Program [Toplevel]
 
 -- | Toplevel constructs.
 data Toplevel = Type TypeId Signature [Constructor]  -- ^ A type declaration.
-              | Func Id Signature                    -- ^ A function declaration.
+              | Func Id Signature [Lambda]           -- ^ A function declaration.
               | Print                                -- ^ A print declaration.
               deriving (Show, Eq)
 
+-- | A type constructor.
 data Constructor = Constructor Id Signature
                  deriving (Show, Eq)
+
+-- | Each declaration body of a function
+data Lambda = Lambda Args Expression
+            deriving (Show, Eq)
+
+newtype Args = Args [Expression]
+                  deriving (Show, Eq)
+
+data Expression = ExpId Id
+                | ExpList [Expression]
+                deriving (Show, Eq)
 
 -- | Returns an empty Program.
 emptyProgram :: Program

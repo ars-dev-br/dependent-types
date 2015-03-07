@@ -95,8 +95,18 @@ typeTests = testGroup "Types"
   ]
 
 funcTests = testGroup "Functions"
-  [ {- testCase "Constant" $
+  [ testCase "Constant" $
       case parse "func one : Nat where one = suc zero." of
-       Right x -> x @?= (Program [Func "one" (Signature ["Nat"])])
-       Left  e -> assertFailure $ show e -}
+       Right x -> x @?= (Program [ Func "one" (Signature ["Nat"])
+                                        [ Lambda (Args []) (ExpList [ExpId "suc", ExpId "zero"]) ] ])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Simple pattern matching" $
+      case parse "func not : Bool -> Bool where\n\
+                 \  not true  = false;\n\
+                 \  not false = true." of
+       Right x -> x @?= (Program [ Func "not" (Signature ["Bool", "Bool"])
+                                        [ Lambda (Args [ExpId "true"]) (ExpList [ExpId "false"])
+                                        , Lambda (Args [ExpId "false"]) (ExpList [ExpId "true"]) ] ])
+       Left  e -> assertFailure $ show e
   ]

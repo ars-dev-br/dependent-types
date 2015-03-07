@@ -12,6 +12,9 @@ parse input = Text.Parsec.parse parseProgram "" input
 
 parseProgram :: Parser Program
 parseProgram = liftM Program $ parseToplevel `endBy` toplevelDelimiter
+  where
+    toplevelDelimiter = spaces >> char '.' >> spaces >> skipMany comment >> spaces
+    comment = string "{-" >> manyTill anyChar (try (string "-}"))
 
 parseToplevel :: Parser TopLevel
 parseToplevel = parseType
@@ -26,8 +29,3 @@ parseType = do
   _ <- spaces
   signature <- string "Type"
   return $ Type (TypeId typeId) [TypeId signature]
-
-toplevelDelimiter = do
-  spaces
-  char '.'
-  spaces

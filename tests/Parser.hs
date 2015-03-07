@@ -42,4 +42,13 @@ typeTests = testGroup "Types"
        Right x -> x @?= (Program [ Type "Void"  ["Type"]
                                  , Type "Empty" ["Type"]])
        Left  e -> assertFailure $ show e
+
+  , testCase "Types with comments between" $
+      case parse "type Void : Type. \n\
+                 \ \n\
+                 \ {- Comment. -}\n\
+                 \type Empty : Type.\n" of
+       Right x -> x @?= (Program [ Type "Void"  ["Type"]
+                                 , Type "Empty" ["Type"]])
+       Left  e -> assertFailure $ show e
   ]

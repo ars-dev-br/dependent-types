@@ -34,21 +34,21 @@ emptyProgramTests = testGroup "Empty Programs"
 typeTests = testGroup "Types"
   [ testCase "Empty type" $
       case parse "type Void : Type." of
-       Right x -> x @?= (Program [Type "Void" ["Type"]])
+       Right x -> x @?= (Program [Type "Void" (Signature ["Type"])])
        Left  e -> assertFailure $ show e
 
   , testCase "More empty types" $
       case parse "type Void : Type.\n\ntype Empty : Type." of
-       Right x -> x @?= (Program [ Type "Void"  ["Type"]
-                                 , Type "Empty" ["Type"]])
+       Right x -> x @?= (Program [ Type "Void"  (Signature ["Type"])
+                                 , Type "Empty" (Signature ["Type"])])
        Left  e -> assertFailure $ show e
 
   , testCase "Types with comments between" $
       case parse "type Void : Type. \n\
                  \ \n\
-                 \ {- Comment. -}\n\
+                 \{- Comment. -}\n\
                  \type Empty : Type.\n" of
-       Right x -> x @?= (Program [ Type "Void"  ["Type"]
-                                 , Type "Empty" ["Type"]])
+       Right x -> x @?= (Program [ Type "Void"  (Signature ["Type"])
+                                 , Type "Empty" (Signature ["Type"])])
        Left  e -> assertFailure $ show e
   ]

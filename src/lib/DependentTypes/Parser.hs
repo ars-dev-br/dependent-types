@@ -8,7 +8,6 @@ module DependentTypes.Parser
        ) where
 
 import Control.Monad
-import Debug.Trace
 import DependentTypes.Data
 import Text.Parsec
 import Text.Parsec.String
@@ -21,8 +20,12 @@ parse = Text.Parsec.parse parseProgram ""
 -- | Parses the program as a whole (i.e. a whole file).
 parseProgram :: Parser Program
 parseProgram = do
+  spaces
   skipMany comment
-  liftM Program $ parseToplevel `endBy` toplevelDelimiter
+  spaces
+  statements <- parseToplevel `endBy` toplevelDelimiter
+  eof
+  return $ Program statements
     where
       toplevelDelimiter = spaces >> char '.' >> spaces >> skipMany comment >> spaces
 
@@ -62,17 +65,20 @@ parsePrint = do
   exp <- parsePrintExpressions
   return $ Print exp
 
+-- | Parses the expressions for a print statement.
 parsePrintExpressions :: Parser Expression
 parsePrintExpressions = do
   liftM ExpList $ parseArg `sepBy` printDelimiter
     where
       printDelimiter = (spaces >> char ';' >> spaces)
 
+-- | Parses the signature of at least one function.
 parseSignatures :: Parser [(String, Signature)]
-parseSignatures = parseFuncSignature `sepBy` funcSignatureDelimiter
+parseSignatures = parseFuncSignature `sepBy1` funcSignatureDelimiter
   where
     funcSignatureDelimiter = try (spaces >> char ';' >> spaces)
 
+-- | Parses the signature of a single function
 parseFuncSignature :: Parser (String, Signature)
 parseFuncSignature = do
   spaces
@@ -117,12 +123,12 @@ parseConstructors = option [] parseConstructor'
 parseConstructor :: Parser Constructor
 parseConstructor = do
   constructorId <- many letter
-  spaces
+  args <- parseArgs
   char ':'
   spaces
   signature <- parseSignature
   constraint <- parseConstraint
-  return $ Constructor constructorId (Args []) signature constraint
+  return $ Constructor constructorId args signature constraint
 
 -- | Parses a constraint for a type constructor.
 parseConstraint :: Parser Constraint

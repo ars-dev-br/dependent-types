@@ -117,7 +117,17 @@ typeTests = testGroup "Types"
        Left  e -> assertFailure $ show e
 
   , testCase "Constructors with arguments" $
-      case parse "data LessOrEqual : Nat -> Nat -> Type where\n\
+      case parse "type Nat : Type where\n\
+                 \  zero  : Nat;\n\
+                 \  suc x : Nat -> Nat." of
+       Right x -> x @?= (Program [ Type "Nat" (Signature ["Type"])
+                                        [ Constructor "zero" (Args []) (Signature ["Nat"]) NoConstraint
+                                        , Constructor "suc" (Args [ExpId "x"]) (Signature ["Nat", "Nat"])
+                                                      NoConstraint ]])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Type with parameters and constructors with arguments" $
+      case parse "type LessOrEqual : Nat -> Nat -> Type where\n\
                  \  lessZero zero    y       : LessOrEqual zero y;\n\
                  \  lessSuc  (suc x) (suc y) : LessOrEqual (suc x) (suc y)." of
        Right x -> x @?= (Program [ Type "LessOrEqual" (Signature ["Nat", "Nat", "Type"])
@@ -135,8 +145,23 @@ typeTests = testGroup "Types"
                                                       NoConstraint ]])
        Left  e -> assertFailure $ show e
 
-  , testCase "Types with restrictions" $
-      case parse "data LessOrEqual : Nat -> Nat -> Type where\n\
+  , testCase "Constructors with restrictions" $
+      case parse "type SemanticallyInvalid : Type where\n\
+                 \  zero : SemanticallyInvalid;\n\
+                 \  suc  : SemanticallyInvalid | SemanticallyInvalid (suc x)." of
+       Right x -> x @?= (Program [ Type "SemanticallyInvalid" (Signature ["Type"])
+                                        [ Constructor "zero" (Args [])
+                                                      (Signature ["SemanticallyInvalid"])
+                                                      NoConstraint
+                                        , Constructor "suc" (Args [])
+                                                      (Signature ["SemanticallyInvalid"])
+                                                      (Constraint (ExpList [ ExpId "SemanticallyInvalid"
+                                                                           , ExpList [ ExpId "suc"
+                                                                                     , ExpId "x" ]]))]])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Constructors with arguments and restrictions" $
+      case parse "type LessOrEqual : Nat -> Nat -> Type where\n\
                  \  lessZero zero    y       : LessOrEqual zero y;\n\
                  \  lessSuc  (suc x) (suc y) : LessOrEqual (suc x) (suc y) | LessOrEqual x y." of
        Right x -> x @?= (Program [ Type "LessOrEqual" (Signature ["Nat", "Nat", "Type"])

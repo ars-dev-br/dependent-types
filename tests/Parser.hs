@@ -160,24 +160,24 @@ typeTests = testGroup "Types"
 funcTests = testGroup "Functions"
   [ testCase "Constant" $
       case parse "func one : Nat where one = suc zero." of
-       Right x -> x @?= (Program [ Func "one" (Signature ["Nat"])
-                                        [ Lambda (Args []) (ExpList [ExpId "suc", ExpId "zero"]) ] ])
+       Right x -> x @?= (Program [ Func [("one", Signature ["Nat"])]
+                                        [ Lambda "one" (Args []) (ExpList [ExpId "suc", ExpId "zero"]) ] ])
        Left  e -> assertFailure $ show e
 
   , testCase "Simple pattern matching" $
       case parse "func not : Bool -> Bool where\n\
                  \  not true  = false;\n\
                  \  not false = true." of
-       Right x -> x @?= (Program [ Func "not" (Signature ["Bool", "Bool"])
-                                        [ Lambda (Args [ExpId "true"])  (ExpList [ExpId "false"])
-                                        , Lambda (Args [ExpId "false"]) (ExpList [ExpId "true"]) ] ])
+       Right x -> x @?= (Program [ Func [("not", Signature ["Bool", "Bool"])]
+                                        [ Lambda "not" (Args [ExpId "true"])  (ExpList [ExpId "false"])
+                                        , Lambda "not" (Args [ExpId "false"]) (ExpList [ExpId "true"]) ] ])
        Left  e -> assertFailure $ show e
 
   , testCase "Complex expression" $
       case parse "func three : Nat where\n\
                  \  three = suc (suc (suc zero))." of
-       Right x -> x @?= (Program [ Func "three" (Signature ["Nat"])
-                                        [ Lambda (Args [])
+       Right x -> x @?= (Program [ Func [("three", Signature ["Nat"])]
+                                        [ Lambda "three" (Args [])
          (ExpList [ExpId "suc", (ExpList [ExpId "suc", (ExpList [ExpId "suc", ExpId "zero"])])]) ] ])
        Left  e -> assertFailure $ show e
 
@@ -186,10 +186,10 @@ funcTests = testGroup "Functions"
                  \  add x       zero = x;\n\
                  \  add zero    y    = y;\n\
                  \  add (suc x) y    = suc (add x y)." of
-       Right x -> x @?= (Program [ Func "add" (Signature ["Nat", "Nat", "Nat"])
-                                        [ Lambda (Args [ExpId "x", ExpId "zero"]) (ExpList [ExpId "x"])
-                                        , Lambda (Args [ExpId "zero", ExpId "y"]) (ExpList [ExpId "y"])
-                                        , Lambda (Args [ExpList [ExpId "suc", ExpId "x"], ExpId "y"])
+       Right x -> x @?= (Program [ Func [("add", Signature ["Nat", "Nat", "Nat"])]
+                                        [ Lambda "add" (Args [ExpId "x", ExpId "zero"]) (ExpList [ExpId "x"])
+                                        , Lambda "add" (Args [ExpId "zero", ExpId "y"]) (ExpList [ExpId "y"])
+                                        , Lambda "add" (Args [ExpList [ExpId "suc", ExpId "x"], ExpId "y"])
                                                  (ExpList [ExpId "suc", ExpList [ ExpId "add"
                                                                                 , ExpId "x"
                                                                                 , ExpId "y" ]])] ])
@@ -200,26 +200,26 @@ funcTests = testGroup "Functions"
                  \  sumOfOdd oddOne     oddOne     = evenSuc evenZero;\n\
                  \  sumOfOdd oddOne     (oddSuc y) = evenSuc (sumOfOdd oddOne y);\n\
                  \  sumOfOdd (oddSuc x) y          = evenSuc (sumOfOdd x y)." of
-       Right x -> x @?= (Program [ Func "sumOfOdd" (Signature [ DepType "Odd" [ExpId "n"]
-                                                              , DepType "Odd" [ExpId "m"]
-                                                              , DepType "Even" [ ExpList [ ExpId "add"
-                                                                                         , ExpId "n"
-                                                                                         , ExpId "m"]]])
-                                                   [ Lambda (Args [ExpId "oddOne", ExpId "oddOne"])
-                                                            (ExpList [ExpId "evenSuc", ExpId "evenZero"])
-                                                   , Lambda (Args [ExpId "oddOne", ExpList [ ExpId "oddSuc"
-                                                                                           , ExpId "y" ]])
-                                                            (ExpList [ ExpId "evenSuc"
-                                                                     , ExpList [ ExpId "sumOfOdd"
-                                                                               , ExpId "oddOne"
-                                                                               , ExpId "y" ]])
-                                                   , Lambda (Args [ ExpList [ ExpId "oddSuc"
-                                                                            , ExpId "x" ]
-                                                                  , ExpId "y" ])
-                                                            (ExpList [ ExpId "evenSuc"
-                                                                     , ExpList [ ExpId "sumOfOdd"
-                                                                               , ExpId "x"
-                                                                               , ExpId "y" ]])]])
+       Right x -> x @?= (Program [ Func [("sumOfOdd", Signature [ DepType "Odd" [ExpId "n"]
+                                                                , DepType "Odd" [ExpId "m"]
+                                                                , DepType "Even" [ ExpList [ ExpId "add"
+                                                                                           , ExpId "n"
+                                                                                           , ExpId "m" ]]])]
+                                                     [ Lambda "sumOfOdd" (Args [ExpId "oddOne", ExpId "oddOne"])
+                                                              (ExpList [ExpId "evenSuc", ExpId "evenZero"])
+                                                     , Lambda "sumOfOdd" (Args [ExpId "oddOne", ExpList [ ExpId "oddSuc"
+                                                                                             , ExpId "y" ]])
+                                                              (ExpList [ ExpId "evenSuc"
+                                                                       , ExpList [ ExpId "sumOfOdd"
+                                                                                 , ExpId "oddOne"
+                                                                                 , ExpId "y" ]])
+                                                     , Lambda "sumOfOdd" (Args [ ExpList [ ExpId "oddSuc"
+                                                                              , ExpId "x" ]
+                                                                    , ExpId "y" ])
+                                                              (ExpList [ ExpId "evenSuc"
+                                                                       , ExpList [ ExpId "sumOfOdd"
+                                                                                 , ExpId "x"
+                                                                                 , ExpId "y" ]])]])
        Left  e -> assertFailure $ show e
 
   , testCase "Mutually recursive functions" $
@@ -228,21 +228,20 @@ funcTests = testGroup "Functions"
                  \  isEven zero     = true;\n\
                  \  isOdd  (suc x)  = isEven x;\n\
                  \  isEven (suc x)  = isOdd x." of
-       Right x -> x @?= (Program [ RecFunc ["isOdd", "isEven"]
-                                           [ Signature ["Nat", "Bool"]
-                                           , Signature ["Nat", "Bool"] ]
-                                           [ RecLambda "isOdd"
-                                                       (Args [ExpId "zero"])
-                                                       (ExpList [ExpId "false"])
-                                           , RecLambda "isEven"
-                                                       (Args [ExpId "zero"])
-                                                       (ExpList [ExpId "true"])
-                                           , RecLambda "isOdd"
-                                                       (Args [ExpList [ExpId "suc", ExpId "x"]])
-                                                       (ExpList [ExpId "isEven", ExpId "x"])
-                                           , RecLambda "isEven"
-                                                       (Args [ExpList [ExpId "suc", ExpId "x"]])
-                                                       (ExpList [ExpId "isOdd", ExpId "x"])]])
+       Right x -> x @?= (Program [ Func [("isOdd", Signature ["Nat", "Bool"])
+                                        ,("isEven", Signature ["Nat", "Bool"])]
+                                        [ Lambda "isOdd"
+                                                 (Args [ExpId "zero"])
+                                                 (ExpList [ExpId "false"])
+                                        , Lambda "isEven"
+                                                 (Args [ExpId "zero"])
+                                                 (ExpList [ExpId "true"])
+                                        , Lambda "isOdd"
+                                                 (Args [ExpList [ExpId "suc", ExpId "x"]])
+                                                 (ExpList [ExpId "isEven", ExpId "x"])
+                                        , Lambda "isEven"
+                                                 (Args [ExpList [ExpId "suc", ExpId "x"]])
+                                                 (ExpList [ExpId "isOdd", ExpId "x"])]])
        Left  e -> assertFailure $ show e
   ]
 

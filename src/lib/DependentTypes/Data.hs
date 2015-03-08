@@ -10,7 +10,6 @@ module DependentTypes.Data
        , Expression (..)
        , Lambda (..)
        , Program (..)
-       , RecLambda (..)
        , Signature (..)
        , Toplevel (..)
        , TypeDef (..)
@@ -37,8 +36,7 @@ data Program = Program [Toplevel]
 
 -- | Toplevel constructs.
 data Toplevel = Type String Signature [Constructor]       -- ^ A type declaration.
-              | Func String Signature [Lambda]            -- ^ A function declaration.
-              | RecFunc [String] [Signature] [RecLambda]  -- ^ Mutually recursive functions
+              | Func [(String, Signature)] [Lambda]       -- ^ A function declaration.
               | Print Expression                          -- ^ A print declaration.
               deriving (Show, Eq)
 
@@ -47,12 +45,8 @@ data Constructor = Constructor String Args Signature Constraint
                  deriving (Show, Eq)
 
 -- | Each declaration body of a function
-data Lambda = Lambda Args Expression
+data Lambda = Lambda String Args Expression
             deriving (Show, Eq)
-
--- | Each declaration body of mutually recursive functions
-data RecLambda = RecLambda String Args Expression
-               deriving (Show, Eq)
 
 -- | Arguments used by a function or a high-kinded type.
 newtype Args = Args [Expression]

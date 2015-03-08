@@ -8,6 +8,7 @@ module DependentTypes.Parser
        ) where
 
 import Control.Monad
+import Debug.Trace
 import DependentTypes.Data
 import Text.Parsec
 import Text.Parsec.String
@@ -47,15 +48,11 @@ parseFunc :: Parser Toplevel
 parseFunc = do
   string "func"
   spaces
-  funcId <- many letter
-  spaces
-  char ':'
-  spaces
-  signature <- parseSignature
+  signatures <- parseSignatures
   spaces
   string "where"
-  lambdas <- parseLambdas funcId
-  return $ Func funcId signature lambdas
+  lambdas <- parseLambdas
+  return $ Func signatures lambdas
 
 -- | Parses a print declaration.
 parsePrint :: Parser Toplevel
@@ -70,6 +67,21 @@ parsePrintExpressions = do
   liftM ExpList $ parseArg `sepBy` printDelimiter
     where
       printDelimiter = (spaces >> char ';' >> spaces)
+
+parseSignatures :: Parser [(String, Signature)]
+parseSignatures = parseFuncSignature `sepBy` funcSignatureDelimiter
+  where
+    funcSignatureDelimiter = try (spaces >> char ';' >> spaces)
+
+parseFuncSignature :: Parser (String, Signature)
+parseFuncSignature = do
+  spaces
+  funcId <- many1 letter
+  spaces
+  char ':'
+  spaces
+  signature <- parseSignature
+  return $ (funcId, signature)
 
 -- | Parses a type signature.
 parseSignature :: Parser Signature
@@ -109,24 +121,35 @@ parseConstructor = do
   char ':'
   spaces
   signature <- parseSignature
-  return $ Constructor constructorId (Args []) signature NoConstraint
+  constraint <- parseConstraint
+  return $ Constructor constructorId (Args []) signature constraint
+
+-- | Parses a constraint for a type constructor.
+parseConstraint :: Parser Constraint
+parseConstraint = option NoConstraint parseConstraint'
+  where
+    parseConstraint' = do
+      spaces
+      char '|'
+      spaces
+      liftM Constraint $ parseExpression
 
 -- | Parses all declaration bodies of a function.
-parseLambdas :: String -> Parser [Lambda]
-parseLambdas func = parseLambda func `sepBy1` lambdaDelimiter
+parseLambdas :: Parser [Lambda]
+parseLambdas = parseLambda `sepBy1` lambdaDelimiter
   where
     lambdaDelimiter = try (spaces >> char ';' >> spaces)
 
 -- | Parses each declaration body of a function
-parseLambda :: String -> Parser Lambda
-parseLambda func = do
+parseLambda :: Parser Lambda
+parseLambda = do
   spaces
-  _ <- string func
+  func <- many1 letter
   args <- parseArgs
   char '='
   spaces
   exp <- parseExpression
-  return $ Lambda args exp
+  return $ Lambda func args exp
 
 -- | Parses all the arguments for a function declaration.
 parseArgs :: Parser Args

@@ -61,7 +61,15 @@ parseFunc = do
 parsePrint :: Parser Toplevel
 parsePrint = do
   string "print"
-  return $ Print
+  spaces
+  exp <- parsePrintExpressions
+  return $ Print exp
+
+parsePrintExpressions :: Parser Expression
+parsePrintExpressions = do
+  liftM ExpList $ parseArg `sepBy` printDelimiter
+    where
+      printDelimiter = (spaces >> char ';' >> spaces)
 
 -- | Parses a type signature.
 parseSignature :: Parser Signature
@@ -92,45 +100,55 @@ parseConstructor = do
   signature <- parseSignature
   return $ Constructor (Id constructorId) signature
 
+-- | Parses all declaration bodies of a function.
 parseLambdas :: String -> Parser [Lambda]
 parseLambdas func = parseLambda func `sepBy1` lambdaDelimiter
   where
     lambdaDelimiter = try (spaces >> char ';' >> spaces)
 
+-- | Parses each declaration body of a function
 parseLambda :: String -> Parser Lambda
 parseLambda func = do
   spaces
   _ <- string func
   args <- parseArgs
-  spaces
   char '='
   spaces
   exp <- parseExpression
   return $ Lambda args exp
 
+-- | Parses all the arguments for a function declaration.
 parseArgs :: Parser Args
 parseArgs = do
   spaces
-  liftM Args $ parseArg `sepBy` argDelimiter
+  liftM Args $ parseArg `endBy` argDelimiter
     where
-      argDelimiter = try (many1 space >> noneOf "=")
+      argDelimiter = spaces
 
+-- | Parses each argument for a function declaration.
 parseArg :: Parser Expression
-parseArg = parseSimpleExpression <|> parseParenthesisExpression
+parseArg = do
+  exp <- (parseSimpleExpression <|> parseParenthesisExpression)
+  return exp;
 
+-- | Parses an (possibly complex) expression.
 parseExpression :: Parser Expression
 parseExpression = parseComposeExpression <|> parseParenthesisExpression
 
+-- | Parses a simple expression (i.e. a single word).
 parseSimpleExpression :: Parser Expression
 parseSimpleExpression = do
   expId <- many1 letter
   return $ ExpId (Id expId)
 
+-- | Parses a complex expression (i.e. a function call or an expression between
+-- parentheses.
 parseComposeExpression :: Parser Expression
 parseComposeExpression = do
   liftM ExpList $ (parseSimpleExpression <|> parseParenthesisExpression)
                     `sepBy` try (many1 space)
 
+-- | Parses an expression between parentheses.
 parseParenthesisExpression :: Parser Expression
 parseParenthesisExpression = do
   char '('

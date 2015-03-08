@@ -7,7 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Text.Parsec hiding (parse)
 
-parserTests = testGroup "Parser" [emptyProgramTests, typeTests, funcTests]
+parserTests = testGroup "Parser" [emptyProgramTests, typeTests, funcTests, printTests]
 
 emptyProgramTests = testGroup "Empty Programs"
   [ testCase "Empty string" $
@@ -106,7 +106,43 @@ funcTests = testGroup "Functions"
                  \  not true  = false;\n\
                  \  not false = true." of
        Right x -> x @?= (Program [ Func "not" (Signature ["Bool", "Bool"])
-                                        [ Lambda (Args [ExpId "true"]) (ExpList [ExpId "false"])
+                                        [ Lambda (Args [ExpId "true"])  (ExpList [ExpId "false"])
                                         , Lambda (Args [ExpId "false"]) (ExpList [ExpId "true"]) ] ])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Complex expression" $
+      case parse "func three : Nat where\n\
+                 \  three = suc (suc (suc zero))." of
+       Right x -> x @?= (Program [ Func "three" (Signature ["Nat"])
+                                        [ Lambda (Args [])
+         (ExpList [ExpId "suc", (ExpList [ExpId "suc", (ExpList [ExpId "suc", ExpId "zero"])])]) ] ])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function with two arguments" $
+      case parse "func add : Nat -> Nat -> Nat where\n\
+                 \  add x       zero = x;\n\
+                 \  add zero    y    = y;\n\
+                 \  add (suc x) y    = suc (add x y)." of
+       Right x -> x @?= (Program [ Func "add" (Signature ["Nat", "Nat", "Nat"])
+                                        [ Lambda (Args [ExpId "x", ExpId "zero"]) (ExpList [ExpId "x"])
+                                        , Lambda (Args [ExpId "zero", ExpId "y"]) (ExpList [ExpId "y"])
+                                        , Lambda (Args [ExpList [ExpId "suc", ExpId "x"], ExpId "y"])
+                                                 (ExpList [ExpId "suc", ExpList [ ExpId "add"
+                                                                                , ExpId "x"
+                                                                                , ExpId "y" ]])] ])
+       Left  e -> assertFailure $ show e
+  ]
+
+printTests = testGroup "Print"
+  [ testCase "Single expression" $
+      case parse "print zero." of
+       Right x -> x @?= (Program [ Print (ExpList [ExpId "zero"]) ])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Complex expression" $
+      case parse "print (not true); six; seven." of
+       Right x -> x @?= (Program [ Print (ExpList [ ExpList [ExpId "not", ExpId "true"]
+                                                  , ExpId "six"
+                                                  , ExpId "seven" ])])
        Left  e -> assertFailure $ show e
   ]

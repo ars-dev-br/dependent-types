@@ -43,7 +43,7 @@ data Program = Program [Toplevel]
 -- | Toplevel constructs.
 data Toplevel = Type TypeId Signature [Constructor]  -- ^ A type declaration.
               | Func Id Signature [Lambda]           -- ^ A function declaration.
-              | Print                                -- ^ A print declaration.
+              | Print Expression                     -- ^ A print declaration.
               deriving (Show, Eq)
 
 -- | A type constructor.
@@ -54,9 +54,11 @@ data Constructor = Constructor Id Signature
 data Lambda = Lambda Args Expression
             deriving (Show, Eq)
 
+-- | Arguments used by a function or a high-kinded type.
 newtype Args = Args [Expression]
                   deriving (Show, Eq)
 
+-- | Expressions to be executed.
 data Expression = ExpId Id
                 | ExpList [Expression]
                 deriving (Show, Eq)

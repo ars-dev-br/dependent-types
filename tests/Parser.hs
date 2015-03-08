@@ -96,8 +96,8 @@ typeTests = testGroup "Types"
 
   , testCase "Type with parameters" $
       case parse "type List : Nat -> Type -> Type where\n\
-                 \  nil  : List zero a;\n\
-                 \  cons : a -> List n a -> List (suc n) a." of
+                 \  nil  : (List zero a);\n\
+                 \  cons : a -> (List n a) -> (List (suc n) a)." of
        Right x -> x @?= (Program [ Type "List" (Signature ["Nat", "Type", "Type"])
                                         [ Constructor "nil"
                                                       (Args [])
@@ -128,8 +128,8 @@ typeTests = testGroup "Types"
 
   , testCase "Type with parameters and constructors with arguments" $
       case parse "type LessOrEqual : Nat -> Nat -> Type where\n\
-                 \  lessZero zero    y       : LessOrEqual zero y;\n\
-                 \  lessSuc  (suc x) (suc y) : LessOrEqual (suc x) (suc y)." of
+                 \  lessZero zero    y       : (LessOrEqual zero y);\n\
+                 \  lessSuc  (suc x) (suc y) : (LessOrEqual (suc x) (suc y))." of
        Right x -> x @?= (Program [ Type "LessOrEqual" (Signature ["Nat", "Nat", "Type"])
                                         [ Constructor "lessZero"
                                                       (Args [ExpId "zero", ExpId "y"])
@@ -162,8 +162,8 @@ typeTests = testGroup "Types"
 
   , testCase "Constructors with arguments and restrictions" $
       case parse "type LessOrEqual : Nat -> Nat -> Type where\n\
-                 \  lessZero zero    y       : LessOrEqual zero y;\n\
-                 \  lessSuc  (suc x) (suc y) : LessOrEqual (suc x) (suc y) | LessOrEqual x y." of
+                 \  lessZero zero    y       : (LessOrEqual zero y);\n\
+                 \  lessSuc  (suc x) (suc y) : (LessOrEqual (suc x) (suc y)) | LessOrEqual x y." of
        Right x -> x @?= (Program [ Type "LessOrEqual" (Signature ["Nat", "Nat", "Type"])
                                         [ Constructor "lessZero"
                                                       (Args [ExpId "zero", ExpId "y"])
@@ -221,7 +221,7 @@ funcTests = testGroup "Functions"
        Left  e -> assertFailure $ show e
 
   , testCase "Function with dependent types" $
-      case parse "func sumOfOdd : Odd n -> Odd m -> Even (add n m) where\n\
+      case parse "func sumOfOdd : (Odd n) -> (Odd m) -> (Even (add n m)) where\n\
                  \  sumOfOdd oddOne     oddOne     = evenSuc evenZero;\n\
                  \  sumOfOdd oddOne     (oddSuc y) = evenSuc (sumOfOdd oddOne y);\n\
                  \  sumOfOdd (oddSuc x) y          = evenSuc (sumOfOdd x y)." of

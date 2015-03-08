@@ -97,15 +97,20 @@ parseSignature = do
     where
       signatureDelimiter = try (spaces >> string "->" >> spaces)
 
--- | Parses a type
 parseTypeDef :: Parser TypeDef
-parseTypeDef = liftM TypeId $ many1 letter
+parseTypeDef = parseTypeId <|> parseDepType
+
+-- | Parses a type
+parseTypeId :: Parser TypeDef
+parseTypeId = liftM TypeId $ many1 letter
 
 -- | Parses a dependent type
 parseDepType :: Parser TypeDef
 parseDepType = do
+  char '('
   typeId <- many1 letter
   (Args args) <- parseArgs
+  char ')'
   return $ DepType typeId args
 
 -- | Parses a list of constructors for a type.

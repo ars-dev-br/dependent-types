@@ -72,7 +72,7 @@ typeTests = testGroup "Types"
       case parse "type Unit : Type where\n\
                  \  unit : Unit." of
        Right x -> x @?= (Program [ Type "Unit" (Signature ["Type"])
-                                        [ Constructor "unit" (Signature ["Unit"]) ]])
+                                        [ Constructor "unit" (Args []) (Signature ["Unit"]) NoConstraint ]])
        Left  e -> assertFailure $ show e
 
   , testCase "Boolean type" $
@@ -80,8 +80,8 @@ typeTests = testGroup "Types"
                  \  false : Bool;\n\
                  \  true  : Bool." of
        Right x -> x @?= (Program [ Type "Bool" (Signature ["Type"])
-                                        [ Constructor "false" (Signature ["Bool"])
-                                        , Constructor "true"  (Signature ["Bool"]) ]])
+                                        [ Constructor "false" (Args []) (Signature ["Bool"]) NoConstraint
+                                        , Constructor "true"  (Args []) (Signature ["Bool"]) NoConstraint ]])
        Left  e -> assertFailure $ show e
 
   , testCase "Natural type" $
@@ -89,8 +89,71 @@ typeTests = testGroup "Types"
                  \  zero : Nat;\n\
                  \  suc  : Nat -> Nat." of
        Right x -> x @?= (Program [ Type "Nat" (Signature ["Type"])
-                                        [ Constructor "zero" (Signature ["Nat"])
-                                        , Constructor "suc"  (Signature ["Nat", "Nat"]) ]])
+                                        [ Constructor "zero" (Args []) (Signature ["Nat"]) NoConstraint
+                                        , Constructor "suc"  (Args []) (Signature ["Nat", "Nat"])
+                                                      NoConstraint ]])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Type with parameters" $
+      case parse "type List : Nat -> Type -> Type where\n\
+                 \  nil  : List zero a;\n\
+                 \  cons : a -> List n a -> List (suc n) a." of
+       Right x -> x @?= (Program [ Type "List" (Signature ["Nat", "Type", "Type"])
+                                        [ Constructor "nil"
+                                                      (Args [])
+                                                      (Signature [DepType "List"
+                                                                          [ExpId "zero", ExpId "a"]])
+                                                      NoConstraint
+
+                                        , Constructor "cons"
+                                                      (Args [])
+                                                      (Signature [ "a"
+                                                                 , DepType "List"
+                                                                           [ExpId "n", ExpId "a"]
+                                                                 , DepType "List"
+                                                                           [ ExpList [ExpId "suc", ExpId "n"]
+                                                                           , ExpId "a" ]])
+                                                      NoConstraint]])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Constructors with arguments" $
+      case parse "data LessOrEqual : Nat -> Nat -> Type where\n\
+                 \  lessZero zero    y       : LessOrEqual zero y;\n\
+                 \  lessSuc  (suc x) (suc y) : LessOrEqual (suc x) (suc y)." of
+       Right x -> x @?= (Program [ Type "LessOrEqual" (Signature ["Nat", "Nat", "Type"])
+                                        [ Constructor "lessZero"
+                                                      (Args [ExpId "zero", ExpId "y"])
+                                                      (Signature [DepType "LessOrEqual"
+                                                                          [ExpId "zero", ExpId "y"]])
+                                                      NoConstraint
+                                        , Constructor "lessSuc"
+                                                      (Args [ ExpList [ExpId "suc", ExpId "x"]
+                                                            , ExpList [ExpId "suc", ExpId "y"] ])
+                                                      (Signature [DepType "LessOrEqual"
+                                                                          [ ExpList [ExpId "suc", ExpId "x"]
+                                                                          , ExpList [ExpId "suc", ExpId "y"]]])
+                                                      NoConstraint ]])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Types with restrictions" $
+      case parse "data LessOrEqual : Nat -> Nat -> Type where\n\
+                 \  lessZero zero    y       : LessOrEqual zero y;\n\
+                 \  lessSuc  (suc x) (suc y) : LessOrEqual (suc x) (suc y) | LessOrEqual x y." of
+       Right x -> x @?= (Program [ Type "LessOrEqual" (Signature ["Nat", "Nat", "Type"])
+                                        [ Constructor "lessZero"
+                                                      (Args [ExpId "zero", ExpId "y"])
+                                                      (Signature [DepType "LessOrEqual"
+                                                                          [ExpId "zero", ExpId "y"]])
+                                                      NoConstraint
+                                        , Constructor "lessSuc"
+                                                      (Args [ ExpList [ExpId "suc", ExpId "x"]
+                                                            , ExpList [ExpId "suc", ExpId "y"] ])
+                                                      (Signature [DepType "LessOrEqual"
+                                                                          [ ExpList [ExpId "suc", ExpId "x"]
+                                                                          , ExpList [ExpId "suc", ExpId "y"]]])
+                                                      (Constraint (ExpList [ ExpId "LessOrEqual"
+                                                                           , ExpId "x"
+                                                                           , ExpId "y" ] )) ]])
        Left  e -> assertFailure $ show e
   ]
 
@@ -130,6 +193,56 @@ funcTests = testGroup "Functions"
                                                  (ExpList [ExpId "suc", ExpList [ ExpId "add"
                                                                                 , ExpId "x"
                                                                                 , ExpId "y" ]])] ])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function with dependent types" $
+      case parse "func sumOfOdd : Odd n -> Odd m -> Even (add n m) where\n\
+                 \  sumOfOdd oddOne     oddOne     = evenSuc evenZero;\n\
+                 \  sumOfOdd oddOne     (oddSuc y) = evenSuc (sumOfOdd oddOne y);\n\
+                 \  sumOfOdd (oddSuc x) y          = evenSuc (sumOfOdd x y)." of
+       Right x -> x @?= (Program [ Func "sumOfOdd" (Signature [ DepType "Odd" [ExpId "n"]
+                                                              , DepType "Odd" [ExpId "m"]
+                                                              , DepType "Even" [ ExpList [ ExpId "add"
+                                                                                         , ExpId "n"
+                                                                                         , ExpId "m"]]])
+                                                   [ Lambda (Args [ExpId "oddOne", ExpId "oddOne"])
+                                                            (ExpList [ExpId "evenSuc", ExpId "evenZero"])
+                                                   , Lambda (Args [ExpId "oddOne", ExpList [ ExpId "oddSuc"
+                                                                                           , ExpId "y" ]])
+                                                            (ExpList [ ExpId "evenSuc"
+                                                                     , ExpList [ ExpId "sumOfOdd"
+                                                                               , ExpId "oddOne"
+                                                                               , ExpId "y" ]])
+                                                   , Lambda (Args [ ExpList [ ExpId "oddSuc"
+                                                                            , ExpId "x" ]
+                                                                  , ExpId "y" ])
+                                                            (ExpList [ ExpId "evenSuc"
+                                                                     , ExpList [ ExpId "sumOfOdd"
+                                                                               , ExpId "x"
+                                                                               , ExpId "y" ]])]])
+       Left  e -> assertFailure $ show e
+
+  , testCase "Mutually recursive functions" $
+      case parse "func isOdd : Nat -> Bool; isEven : Nat -> Bool where\n\
+                 \  isOdd  zero     = false;\n\
+                 \  isEven zero     = true;\n\
+                 \  isOdd  (suc x)  = isEven x;\n\
+                 \  isEven (suc x)  = isOdd x." of
+       Right x -> x @?= (Program [ RecFunc ["isOdd", "isEven"]
+                                           [ Signature ["Nat", "Bool"]
+                                           , Signature ["Nat", "Bool"] ]
+                                           [ RecLambda "isOdd"
+                                                       (Args [ExpId "zero"])
+                                                       (ExpList [ExpId "false"])
+                                           , RecLambda "isEven"
+                                                       (Args [ExpId "zero"])
+                                                       (ExpList [ExpId "true"])
+                                           , RecLambda "isOdd"
+                                                       (Args [ExpList [ExpId "suc", ExpId "x"]])
+                                                       (ExpList [ExpId "isEven", ExpId "x"])
+                                           , RecLambda "isEven"
+                                                       (Args [ExpList [ExpId "suc", ExpId "x"]])
+                                                       (ExpList [ExpId "isOdd", ExpId "x"])]])
        Left  e -> assertFailure $ show e
   ]
 

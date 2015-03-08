@@ -40,7 +40,7 @@ parseType = do
   spaces
   signature <- parseSignature
   constructors <- parseConstructors
-  return $ Type (TypeId typeId) signature constructors
+  return $ Type typeId signature constructors
 
 -- | Parses a function declaration.
 parseFunc :: Parser Toplevel
@@ -55,7 +55,7 @@ parseFunc = do
   spaces
   string "where"
   lambdas <- parseLambdas funcId
-  return $ Func (Id funcId) signature lambdas
+  return $ Func funcId signature lambdas
 
 -- | Parses a print declaration.
 parsePrint :: Parser Toplevel
@@ -74,10 +74,21 @@ parsePrintExpressions = do
 -- | Parses a type signature.
 parseSignature :: Parser Signature
 parseSignature = do
-  types <- many letter `sepBy1` signatureDelimiter
-  return $ Signature (map TypeId types)
+  types <- parseTypeDef `sepBy1` signatureDelimiter
+  return $ Signature types
     where
       signatureDelimiter = try (spaces >> string "->" >> spaces)
+
+-- | Parses a type
+parseTypeDef :: Parser TypeDef
+parseTypeDef = liftM TypeId $ many1 letter
+
+-- | Parses a dependent type
+parseDepType :: Parser TypeDef
+parseDepType = do
+  typeId <- many1 letter
+  (Args args) <- parseArgs
+  return $ DepType typeId args
 
 -- | Parses a list of constructors for a type.
 parseConstructors :: Parser [Constructor]
@@ -98,7 +109,7 @@ parseConstructor = do
   char ':'
   spaces
   signature <- parseSignature
-  return $ Constructor (Id constructorId) signature
+  return $ Constructor constructorId (Args []) signature NoConstraint
 
 -- | Parses all declaration bodies of a function.
 parseLambdas :: String -> Parser [Lambda]
@@ -127,9 +138,7 @@ parseArgs = do
 
 -- | Parses each argument for a function declaration.
 parseArg :: Parser Expression
-parseArg = do
-  exp <- (parseSimpleExpression <|> parseParenthesisExpression)
-  return exp;
+parseArg = parseSimpleExpression <|> parseParenthesisExpression
 
 -- | Parses an (possibly complex) expression.
 parseExpression :: Parser Expression
@@ -139,7 +148,7 @@ parseExpression = parseComposeExpression <|> parseParenthesisExpression
 parseSimpleExpression :: Parser Expression
 parseSimpleExpression = do
   expId <- many1 letter
-  return $ ExpId (Id expId)
+  return $ ExpId expId
 
 -- | Parses a complex expression (i.e. a function call or an expression between
 -- parentheses.

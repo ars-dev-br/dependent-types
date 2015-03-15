@@ -48,11 +48,62 @@ funcTests = testGroup "Function Definitions"
 
       assertEqual env1 env2
 
-  , testCase "Function definition for undefined type" $
+  , testCase "Function with undefined type" $
     do
       env <- nullEnv
       case parse "func not : Bool -> Bool where not true = false; not false = true." of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
+  , testCase "Function using undefined symbol" $
+    do
+      env <- fromList naturals
+      case parse "func two : Nat where two = add (suc zero) (suc zero)." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function using wrong number of arguments for function call" $
+    do
+      env <- fromList naturals
+      case parse "func addOne : Nat -> Nat where addOne x = suc x.\n\
+                 \func invalid : Nat -> Nat where invalid x = addOne x x." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function using wrong number of arguments for constructor" $
+    do
+      env <- fromList naturals
+      case parse "func addOne : Nat -> Nat where addOne x = suc x x." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function using wrong type of argument for function call" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func addOne : Nat -> Nat where addOne x = suc x.\n\
+                 \func invalid : Nat where invalid = addOne true." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function using wrong type of argument for constructor" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func invalid : Nat where invalid = suc true." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function not matching with signature" $
+    do
+      env <- fromList $ naturals
+      case parse "func invalid : Nat where foo = zero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Mutually function not matching with signature" $
+    do
+      env <- fromList $ naturals
+      case parse "func invalid : Nat; alsoInvalid : Nat where\n\
+                 \  foo = zero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
   ]

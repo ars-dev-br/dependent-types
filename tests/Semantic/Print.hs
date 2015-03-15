@@ -53,7 +53,7 @@ printTests = testGroup "Print Statements"
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Printing function" $
+  , testCase "Printing function with pattern matching" $
     do
       env <- fromList booleans
       case parse "func not : Bool -> Bool where\n\
@@ -64,7 +64,19 @@ printTests = testGroup "Print Statements"
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Printing list functions" $
+  , testCase "Printing function with arguments and pattern matching" $
+    do
+      env <- fromList naturals
+      case parse "func add : Nat -> Nat -> Nat where\n\
+                 \  add x       zero = x;\n\
+                 \  add zero    y    = y;\n\
+                 \  add (suc x) y    = suc (add x y).\n\
+                 \\n\
+                 \print (add (suc zero) (suc (suc zero)))." of
+       Right p -> evalProgram env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing list of functions" $
     do
       env <- fromList booleans
       case parse "func not : Bool -> Bool where\n\
@@ -72,6 +84,35 @@ printTests = testGroup "Print Statements"
                  \  not false = true.\n\
                  \\n\
                  \print (not true); (not false)." of
+       Right p -> evalProgram env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing constructor with wrong number of arguments" $
+    do
+      env <- fromList naturals
+      case parse "print (suc zero zero)." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing constructor with wrong type of argument" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "print (suc true)." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing constructor with undefined argument" $
+    do
+      env <- fromList $ naturals
+      case parse "print (suc undef)." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing mixing constructors and functions" $
+    do
+      env <- fromList $ naturals
+      case parse "func two : Nat where two = suc (suc zero).\n\
+                 \print (suc two)." of
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
   ]

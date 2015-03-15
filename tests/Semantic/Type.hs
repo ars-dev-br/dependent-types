@@ -54,4 +54,25 @@ typeTests = testGroup "Type Definitions"
       case parse "type Void : Type. type Valid : Void -> Type." of
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
+
+  , testCase "Type constructor depending on defined type" $
+    do
+      env <- fromList naturals
+      case parse "type Bounded : Type where\n\
+                 \  lowerBound : Bounded;\n\
+                 \  upperBound : Bounded;\n\
+                 \  bounded    : Nat -> Bounded." of
+       Right p -> evalProgram env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Type constructor depending on undefined type" $
+    do
+      env <- nullEnv
+      case parse "type Bounded : Type where\n\
+                 \  lowerBound : Bounded;\n\
+                 \  upperBound : Bounded;\n\
+                 \  bounded    : Nat -> Bounded." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
   ]

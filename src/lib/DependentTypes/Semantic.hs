@@ -4,11 +4,14 @@ Description: Semantic analysis and program interpreter.
 -}
 
 module DependentTypes.Semantic
-       ( nullEnv
+       ( Env
        , evalProgram
        , fromList
+       , nullEnv
        ) where
 
+import Control.Exception
+import Control.Monad
 import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -37,10 +40,32 @@ evalToplevels env (t:ts) = do
 
 -- | Evaluates a toplevel construct.
 evalToplevel :: Env -> Toplevel -> IO ()
-evalToplevel env t@(Type name _ _)       = modifyIORef env (Map.insert name t)
+evalToplevel env t@(Type name sig cons)       = do
+  checkTypeSignature env name sig
+  modifyIORef env (Map.insert name t)
 evalToplevel env   (Func []     lambdas) = return ()
 evalToplevel env f@(Func (s:ss) lambdas) = do
   modifyIORef env (Map.insert (fst s) $ Func [s] lambdas)
   evalToplevel env $ Func ss lambdas
 evalToplevel env print@(Print exp) = do
   return ()
+
+-- | Checks if a signature for a type is valid
+checkTypeSignature :: Env -> String -> Signature -> IO ()
+checkTypeSignature env name (Signature []) = error $ name ++ ": " ++ "Type must have signature"
+checkTypeSignature env name (Signature [s]) = do
+  unless (s == "Type") $ error (name ++ ": " ++ "Type signature must end with 'Type'.")
+checkTypeSignature env name (Signature (s:ss)) = do
+  e <- readIORef env
+  unless (s == "Type" || isType e s) $
+    error (name ++ ": " ++ "Type signature must have already defined types.")
+  checkTypeSignature env name (Signature ss)
+
+-- | Checks if a type name refers to an existing type.
+isType :: Map String Toplevel -> TypeDef -> Bool
+isType m (TypeId name) = case Map.lookup name m of
+                          Just (Type _ _ _) -> True
+                          _                 -> False
+isType m (DepType name _) = case Map.lookup name m of
+                             Just (Type _ _ _) -> True
+                             _                 -> False

@@ -31,6 +31,20 @@ printTests = testGroup "Print Statements"
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
 
+  , testCase "Printing constructor with arguments" $
+    do
+      env <- fromList naturals
+      case parse "print (suc zero)." of
+       Right p -> evalProgram env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing list of constructors with arguments" $
+    do
+      env <- fromList naturals
+      case parse "print (suc zero); (suc (suc zero)); (suc (suc (suc zero)))." of
+       Right p -> evalProgram env p
+       Left  e -> assertFailure $ show e
+
   , testCase "Printing constant" $
     do
       env <- fromList naturals

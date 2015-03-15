@@ -19,21 +19,21 @@ printTests = testGroup "Print Statements"
 
   , testCase "Printing simple constructor" $
     do
-      env <- fromList [("Nat", nat)]
+      env <- fromList naturals
       case parse "print zero." of
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing list of simple constructors" $
     do
-      env <- fromList [("Nat", nat), ("Bool", bool)]
+      env <- fromList $ naturals ++ booleans
       case parse "print zero; true; false." of
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing constant" $
     do
-      env <- fromList [("Nat", nat)]
+      env <- fromList naturals
       case parse "func one : Nat where one = suc zero.\n\
                  \print one." of
        Right p -> evalProgram env p
@@ -41,7 +41,7 @@ printTests = testGroup "Print Statements"
 
   , testCase "Printing function" $
     do
-      env <- fromList [("Bool", bool)]
+      env <- fromList booleans
       case parse "func not : Bool -> Bool where\n\
                  \  not true  = false;\n\
                  \  not false = true.\n\
@@ -52,7 +52,7 @@ printTests = testGroup "Print Statements"
 
   , testCase "Printing list functions" $
     do
-      env <- fromList [("Bool", bool)]
+      env <- fromList booleans
       case parse "func not : Bool -> Bool where\n\
                  \  not true  = false;\n\
                  \  not false = true.\n\

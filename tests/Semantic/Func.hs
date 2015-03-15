@@ -12,10 +12,10 @@ import Test.Tasty.HUnit hiding (assertEqual)
 funcTests = testGroup "Function Definitions"
   [ testCase "Simple function" $
     do
-      env1 <- fromList [ ("Nat", nat) ]
-      env2 <- fromList [ ("Nat", nat)
-                       , ("one", Func [("one", Signature ["Nat"])]
-                                 [Lambda "one" (Args []) (ExpList [ ExpId "suc", ExpId "zero" ])]) ]
+      env1 <- fromList naturals
+      env2 <- fromList $ naturals ++
+                         [ ("one", Func [("one", Signature ["Nat"])]
+                                   [Lambda "one" (Args []) (ExpList [ ExpId "suc", ExpId "zero" ])]) ]
 
       case parse "func one : Nat where\n\
                  \  one = suc zero." of
@@ -33,9 +33,9 @@ funcTests = testGroup "Function Definitions"
                           , Lambda "even" (Args [ExpList [ExpId "suc", ExpId "x"]])
                                    (ExpList [ExpId "odd", ExpId "x"]) ]
 
-      env1 <- fromList [ ("Nat", nat), ("Bool", bool) ]
-      env2 <- fromList [ ("Nat", nat), ("Bool", bool)
-                       , ("odd", Func [("odd", Signature ["Nat", "Bool"])] oddEven)
+      env1 <- fromList $ naturals ++ booleans
+      env2 <- fromList $ naturals ++ booleans ++
+                       [ ("odd", Func [("odd", Signature ["Nat", "Bool"])] oddEven)
                        , ("even", Func [("even", Signature ["Nat", "Bool"])] oddEven) ]
 
       case parse "func odd : Nat -> Bool; even : Nat -> Bool where\n\

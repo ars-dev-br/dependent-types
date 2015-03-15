@@ -23,9 +23,10 @@ typeTests = testGroup "Type Definitions"
 
   , testCase "Unit type" $
     do
+      unit <- return $ Type "Unit" (Signature ["Type"])
+                       [Constructor "unit" (Args []) (Signature ["Unit"]) NoConstraint]
       env1 <- nullEnv
-      env2 <- fromList [("Unit", Type "Unit" (Signature ["Type"])
-                                      [Constructor "unit" (Args []) (Signature ["Unit"]) NoConstraint])]
+      env2 <- fromList [("Unit", unit), ("unit", unit)]
 
       case parse "type Unit : Type where unit : Unit." of
        Right p -> evalProgram env1 p

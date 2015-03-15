@@ -13,6 +13,7 @@ module DependentTypes.Semantic
 import Control.Exception
 import Control.Monad
 import Data.IORef
+import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import DependentTypes.Data
@@ -43,12 +44,14 @@ evalToplevels env (t:ts) = do
 evalToplevel :: Env -> Toplevel -> IO ()
 evalToplevel env t@(Type name sig cons) = do
   checkTypeSignature env name sig
+  forM_ cons $ \(Constructor consName _ _ _) -> modifyIORef env (Map.insert consName t)
   modifyIORef env (Map.insert name t)
 evalToplevel env f@(Func ss lambdas) = do
   checkFuncSignature env ss
   forM_ ss $ \s -> modifyIORef env (Map.insert (fst s) $ Func [s] lambdas)
 evalToplevel env print@(Print exp) = do
-  error "Not implemented"
+  evalExp <- evalExpression env exp
+  putStrLn $ printExpression evalExp ++ "."
 
 -- | Checks if a signature for a type is valid.
 checkTypeSignature :: Env -> String -> Signature -> IO ()
@@ -64,10 +67,10 @@ checkTypeSignature env name (Signature (s:ss)) = do
 -- | Checks if a type name refers to an existing type with the same arity.
 isValidType :: Map String Toplevel -> TypeDef -> Bool
 isValidType m (TypeId name) = case Map.lookup name m of
-                               Just (Type _ (Signature [x]) _) -> True
+                               Just (Type n (Signature [x]) _) -> n == name
                                _                               -> False
 isValidType m (DepType name es) = case Map.lookup name m of
-                                   Just (Type _ (Signature ts) _) -> isTypeAssignable es ts
+                                   Just (Type n (Signature ts) _) -> n == name && isTypeAssignable es ts
                                    _                              -> False
 
 -- | Checks if a list of expressions is assignable to a list of types.
@@ -84,3 +87,26 @@ checkFuncSignature env ss = forM_ ss $ \s -> checkFuncSignature' env s
         e <- readIORef env
         unless (isValidType e s) $
           error (name ++ ": " ++ "Function signature must have already defined types.")
+
+-- | Evaluates an expression.
+evalExpression :: Env -> Expression -> IO Expression
+evalExpression env expId@(ExpId e) = do
+  m <- readIORef env
+  unless (isConstructor m e) $ error (e ++ ": " ++ "Expression could not be evaluated")
+  return expId
+evalExpression env (ExpList exps) = do
+  liftM ExpList $ forM exps (evalExpression env)
+
+-- | Checks if it is a valid constructor.
+isConstructor :: Map String Toplevel -> String -> Bool
+isConstructor m name = case Map.lookup name m of
+                        Just (Type n _ _) -> n /= name
+                        _                 -> False
+
+-- | Prints an expression.
+printExpression :: Expression -> String
+printExpression (ExpId expId) = expId
+printExpression (ExpList exps) = intercalate "; " $ map printExpression' exps
+  where
+    printExpression' (ExpId expId) = expId
+    printExpression' (ExpList exps) = "(" ++ (unwords $ map printExpression' exps) ++ ")"

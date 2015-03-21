@@ -117,7 +117,22 @@ checkLambdaArgs env name ss (Args args) = do
     eqName (sigName, _) = sigName == name
 
 checkLambdaBody :: Env -> String -> [(String, Signature)] -> Args -> Expression -> IO ()
-checkLambdaBody env name ss args exp = return ()
+checkLambdaBody env name ss (Args args) (ExpId expId) = do
+  e <- readIORef env
+  when (invalidId e ss args expId) $ error (expId ++ ": undefined symbol")
+    where
+      invalidId e ss args expId = expId `Map.notMember` e &&
+                                  all notInArgExpId args &&
+                                  all notEqSigExpId ss
+
+      notInArgExpId arg = case arg of
+                           ExpId arg -> arg /= expId
+                           ExpList expList -> all notInArgExpId expList
+
+      notEqSigExpId (sigName, _) = sigName /= expId
+
+checkLambdaBody env name ss args (ExpList expList) = do
+  forM_ expList (checkLambdaBody env name ss args)
 
 -- | Evaluates an expression.
 evalExpression :: Env -> Expression -> IO Expression

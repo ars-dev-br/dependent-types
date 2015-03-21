@@ -114,4 +114,26 @@ funcTests = testGroup "Function Definitions"
                  \  and a b c = false." of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
+
+  , testCase "Function which returns a parameterless constructor" $
+    do
+     env <- fromList $ naturals
+     case parse "func newZero : Nat where newZero = zero." of
+      Right p -> evalProgram env p
+      Left  e -> assertFailure $ show e
+
+  , testCase "Function which calls a parameterless function" $
+    do
+      env <- fromList $ naturals
+      case parse "func newZero : Nat where newZero = zero.\n\
+                 \func otherZero : Nat where otherZero = newZero." of
+       Right p -> evalProgram env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function which calls a paramaterless undefined function" $
+    do
+      env <- fromList $ naturals
+      case parse "func otherZero : Nat where otherZero = newZero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
   ]

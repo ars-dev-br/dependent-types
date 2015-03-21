@@ -44,10 +44,13 @@ evalToplevels env (t:ts) = do
 evalToplevel :: Env -> Toplevel -> IO ()
 evalToplevel env t@(Type name sig cons) = do
   checkTypeSignature env name sig
-  forM_ cons $ \(Constructor consName _ _ _) -> modifyIORef env (Map.insert consName t)
   modifyIORef env (Map.insert name t)
+  forM_ cons $ \c@(Constructor consName _ sig _) -> do
+                      checkConsSignature env consName sig
+                      modifyIORef env (Map.insert consName t)
 evalToplevel env f@(Func ss lambdas) = do
   checkFuncSignature env ss
+  checkFuncLambdas env ss lambdas
   forM_ ss $ \s -> modifyIORef env (Map.insert (fst s) $ Func [s] lambdas)
 evalToplevel env print@(Print exp) = do
   evalExp <- evalExpression env exp
@@ -55,14 +58,21 @@ evalToplevel env print@(Print exp) = do
 
 -- | Checks if a signature for a type is valid.
 checkTypeSignature :: Env -> String -> Signature -> IO ()
-checkTypeSignature env name (Signature []) = error $ name ++ ": " ++ "Type must have signature"
+checkTypeSignature env name (Signature []) = error $ name ++ ": Type must have signature"
 checkTypeSignature env name (Signature [s]) = do
   unless (s == "Type") $ error (name ++ ": " ++ "Type signature must end with 'Type'.")
 checkTypeSignature env name (Signature (s:ss)) = do
   e <- readIORef env
-  unless (s == "Type" || isValidType e s) $
-    error (name ++ ": " ++ "Type signature must have already defined types.")
+  unless (s == "Type" || isValidType e s) $ error ((typeName s) ++ ": undefined type.")
   checkTypeSignature env name (Signature ss)
+
+-- | Checks if a signature for a constructor is valid.
+checkConsSignature :: Env -> String -> Signature -> IO ()
+checkConsSignature env name (Signature []) = error $ name ++ ": Constructor must have signature"
+checkConsSignature env name (Signature ss) = do
+  forM_ ss $ \s -> do
+    e <- readIORef env
+    unless (isValidType e s) $ error ((typeName s) ++ ": undefined type.")
 
 -- | Checks if a type name refers to an existing type with the same arity.
 isValidType :: Map String Toplevel -> TypeDef -> Bool
@@ -85,8 +95,29 @@ checkFuncSignature env ss = forM_ ss $ \s -> checkFuncSignature' env s
     checkFuncSignature' env (name, Signature ss) = do
       forM_ ss $ \s -> do
         e <- readIORef env
-        unless (isValidType e s) $
-          error (name ++ ": " ++ "Function signature must have already defined types.")
+        unless (isValidType e s) $ error ((typeName s) ++ ": undefined type.")
+
+-- | Checks if the definitions of a function are valid.
+checkFuncLambdas :: Env -> [(String, Signature)] -> [Lambda] -> IO ()
+checkFuncLambdas env ss [] = error $ ""
+checkFuncLambdas env ss ls = forM_ ls $ \l -> checkFuncLambda env ss l
+  where
+    checkFuncLambda env ss l@(Lambda name args exp) = do
+      checkLambdaArgs env name ss args
+      checkLambdaBody env name ss args exp
+
+-- | Checks if the arguments of a function definition is valid.
+checkLambdaArgs :: Env -> String -> [(String, Signature)] -> Args -> IO ()
+checkLambdaArgs env name ss (Args args) = do
+  case find eqName ss of
+   Just (_, (Signature s)) -> do
+     unless (length s == 1 + length args) $ error (name ++ ": wrong number of arguments")
+   Nothing -> error $ name ++ ": undefined function"
+  where
+    eqName (sigName, _) = sigName == name
+
+checkLambdaBody :: Env -> String -> [(String, Signature)] -> Args -> Expression -> IO ()
+checkLambdaBody env name ss args exp = return ()
 
 -- | Evaluates an expression.
 evalExpression :: Env -> Expression -> IO Expression

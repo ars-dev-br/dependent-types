@@ -106,4 +106,12 @@ funcTests = testGroup "Function Definitions"
                  \  foo = zero." of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
+
+  , testCase "Function definition with wrong number of arguments" $
+    do
+      env <- fromList $ booleans
+      case parse "func and : Bool -> Bool -> Bool where\n\
+                 \  and a b c = false." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
   ]

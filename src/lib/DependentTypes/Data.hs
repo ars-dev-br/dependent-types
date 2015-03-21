@@ -14,6 +14,7 @@ module DependentTypes.Data
        , Toplevel (..)
        , TypeDef (..)
        , emptyProgram
+       , typeName
        ) where
 
 import Data.String
@@ -65,3 +66,8 @@ data Constraint = Constraint Expression  -- ^ A constructor contrained by this e
 -- | Returns an empty Program.
 emptyProgram :: Program
 emptyProgram = Program []
+
+-- | Returns the name of a type
+typeName :: TypeDef -> String
+typeName (TypeId name) = name
+typeName (DepType name _) = name

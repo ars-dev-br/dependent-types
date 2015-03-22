@@ -218,35 +218,37 @@ evalExpression :: Map String Toplevel -> Expression -> IO Expression
 evalExpression e exp = do
   case tryEvalExpression e exp of
    Right exp -> return exp
-   Left name -> error $ name ++ ": expression could not be evaluated"
+   Left err -> error err
 
 -- | Tries to evaluate an expression
 tryEvalExpression :: Map String Toplevel -> Expression -> Either String Expression
 tryEvalExpression e exp@(ExpId expId) = do
-  if isConstructor e expId
-    then evalConstructor e expId
-    else Left expId
-
-tryEvalExpression e (ExpList [exp]) = tryEvalExpression e exp
+  if undefinedId e [] (Args []) expId
+    then Left $ expId ++ ": undefined symbol"
+    else case checkIdEnv e expId of
+          Right () -> evalId e expId
+          Left _   -> Left $ expId ++ ": invalid arguments"
 
 tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) = do
   case forM expTail $ tryEvalExpression e of
-   Right expArgs -> Right $ ExpList ((ExpId expId):expArgs)
+   Right expArgs -> case checkCallEnv e $  (ExpId expId):expArgs of
+                     Right () -> Right (ExpList $ (ExpId expId):expArgs)
+                     Left err -> Left $ err ++ ": invalid arguments"
    Left  name    -> Left name
 
--- | Checks if it is a valid constructor.
-isConstructor :: Map String Toplevel -> String -> Bool
-isConstructor m name = case Map.lookup name m of
-                        Just (Type n _ _) -> n /= name
-                        _                 -> False
+evalId :: Map String Toplevel -> String -> Either String Expression
+evalId e expId = do
+  case expId `Map.lookup` e of
+   Just (Type _ _ _) -> Right (ExpId expId)
+   Just (Func _ ls)  -> evalLambda e ls expId
+   _                 -> Left $ expId ++ ": undefined symbol"
+  where
+    evalLambda e ((Lambda _ _ exp):ls) expId = tryEvalExpression e exp
 
-evalConstructor :: Map String Toplevel -> String -> Either String Expression
-evalConstructor e name = Right $ ExpId name
 
+-- | Converts Expressions to a String.
 showExpressions :: [Expression] -> String
 showExpressions exps = (intercalate "; " $ map showExpression exps) ++ "."
-
--- | Converts an Expression to a String.
-showExpression :: Expression -> String
-showExpression (ExpId expId) = expId
-showExpression (ExpList exps) = "(" ++ (unwords $ map showExpression exps) ++ ")"
+  where
+    showExpression (ExpId expId) = expId
+    showExpression (ExpList exps) = "(" ++ (unwords $ map showExpression exps) ++ ")"

@@ -87,10 +87,17 @@ printTests = testGroup "Print Statements"
        Right p -> evalProgram env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Printing constructor with wrong number of arguments" $
+  , testCase "Printing constructor with more arguments" $
     do
       env <- fromList naturals
       case parse "print (suc zero zero)." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing constructor with less arguments" $
+    do
+      env <- fromList naturals
+      case parse "print suc." of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 

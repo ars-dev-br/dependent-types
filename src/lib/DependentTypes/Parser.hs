@@ -66,11 +66,10 @@ parsePrint = do
   return $ Print exp
 
 -- | Parses the expressions for a print statement.
-parsePrintExpressions :: Parser Expression
-parsePrintExpressions = do
-  liftM ExpList $ parseArg `sepBy` printDelimiter
-    where
-      printDelimiter = (spaces >> char ';' >> spaces)
+parsePrintExpressions :: Parser [Expression]
+parsePrintExpressions = parseArg `sepBy` printDelimiter
+  where
+    printDelimiter = (spaces >> char ';' >> spaces)
 
 -- | Parses the signature of at least one function.
 parseSignatures :: Parser [(String, Signature)]

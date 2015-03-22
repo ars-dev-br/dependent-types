@@ -47,8 +47,9 @@ evalToplevel env f@(Func ss lambdas) = do
   forM_ ss $ \s@(name, _) -> modifyIORef env (Map.insert name $ Func [s] lambdas)
   checkFuncLambdas env ss lambdas
 evalToplevel env print@(Print exp) = do
-  evalExp <- evalExpression env exp
-  putStrLn $ printExpression evalExp ++ "."
+  e <- readIORef env
+  evalExp <- forM exp $ evalExpression e
+  putStrLn $ showExpressions evalExp
 
 -- | Checks if a signature for a type is valid.
 checkTypeSignature :: Env -> String -> Signature -> IO ()
@@ -213,13 +214,25 @@ checkCallSigs ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
       when (name == expId && length ss /= length exp) $ Left expId
 
 -- | Evaluates an expression.
-evalExpression :: Env -> Expression -> IO Expression
-evalExpression env expId@(ExpId e) = do
-  m <- readIORef env
-  unless (isConstructor m e) $ error (e ++ ": " ++ "Expression could not be evaluated")
-  return expId
-evalExpression env (ExpList exps) = do
-  liftM ExpList $ forM exps (evalExpression env)
+evalExpression :: Map String Toplevel -> Expression -> IO Expression
+evalExpression e exp = do
+  case tryEvalExpression e exp of
+   Right exp -> return exp
+   Left name -> error $ name ++ ": expression could not be evaluated"
+
+-- | Tries to evaluate an expression
+tryEvalExpression :: Map String Toplevel -> Expression -> Either String Expression
+tryEvalExpression e exp@(ExpId expId) = do
+  if isConstructor e expId
+    then evalConstructor e expId
+    else Left expId
+
+tryEvalExpression e (ExpList [exp]) = tryEvalExpression e exp
+
+tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) = do
+  case forM expTail $ tryEvalExpression e of
+   Right expArgs -> Right $ ExpList ((ExpId expId):expArgs)
+   Left  name    -> Left name
 
 -- | Checks if it is a valid constructor.
 isConstructor :: Map String Toplevel -> String -> Bool
@@ -227,10 +240,13 @@ isConstructor m name = case Map.lookup name m of
                         Just (Type n _ _) -> n /= name
                         _                 -> False
 
--- | Prints an expression.
-printExpression :: Expression -> String
-printExpression (ExpId expId) = expId
-printExpression (ExpList exps) = intercalate "; " $ map printExpression' exps
-  where
-    printExpression' (ExpId expId) = expId
-    printExpression' (ExpList exps) = "(" ++ (unwords $ map printExpression' exps) ++ ")"
+evalConstructor :: Map String Toplevel -> String -> Either String Expression
+evalConstructor e name = Right $ ExpId name
+
+showExpressions :: [Expression] -> String
+showExpressions exps = (intercalate "; " $ map showExpression exps) ++ "."
+
+-- | Converts an Expression to a String.
+showExpression :: Expression -> String
+showExpression (ExpId expId) = expId
+showExpression (ExpList exps) = "(" ++ (unwords $ map showExpression exps) ++ ")"

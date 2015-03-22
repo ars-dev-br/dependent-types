@@ -273,13 +273,13 @@ funcTests = testGroup "Functions"
 printTests = testGroup "Print"
   [ testCase "Single expression" $
       case parse "print zero." of
-       Right x -> x @?= (Program [ Print (ExpList [ExpId "zero"]) ])
+       Right x -> x @?= (Program [ Print [ExpId "zero"] ])
        Left  e -> assertFailure $ show e
 
   , testCase "Complex expression" $
       case parse "print (not true); six; seven." of
-       Right x -> x @?= (Program [ Print (ExpList [ ExpList [ExpId "not", ExpId "true"]
-                                                  , ExpId "six"
-                                                  , ExpId "seven" ])])
+       Right x -> x @?= (Program [ Print [ ExpList [ExpId "not", ExpId "true"]
+                                         , ExpId "six"
+                                         , ExpId "seven" ]])
        Left  e -> assertFailure $ show e
   ]

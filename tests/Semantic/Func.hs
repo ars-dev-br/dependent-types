@@ -19,7 +19,7 @@ funcTests = testGroup "Function Definitions"
 
       case parse "func one : Nat where\n\
                  \  one = suc zero." of
-       Right p -> evalProgram env1 p
+       Right p -> evalQuietProgram env1 p
        Left  e -> assertFailure $ show e
 
       assertEqual env1 env2
@@ -43,7 +43,7 @@ funcTests = testGroup "Function Definitions"
                  \  even zero    = true;\n\
                  \  odd (suc x)  = even x;\n\
                  \  even (suc x) = odd x." of
-       Right p -> evalProgram env1 p
+       Right p -> evalQuietProgram env1 p
        Left  e -> assertFailure $ show e
 
       assertEqual env1 env2
@@ -134,7 +134,7 @@ funcTests = testGroup "Function Definitions"
     do
      env <- fromList $ naturals
      case parse "func newZero : Nat where newZero = zero." of
-      Right p -> evalProgram env p
+      Right p -> evalQuietProgram env p
       Left  e -> assertFailure $ show e
 
   , testCase "Function which calls a parameterless function" $
@@ -142,7 +142,7 @@ funcTests = testGroup "Function Definitions"
       env <- fromList $ naturals
       case parse "func newZero : Nat where newZero = zero.\n\
                  \func otherZero : Nat where otherZero = newZero." of
-       Right p -> evalProgram env p
+       Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Function which calls a paramaterless undefined function" $

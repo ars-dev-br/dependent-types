@@ -23,7 +23,7 @@ emptyTests = testGroup "Empty Program"
     do
       env1 <- nullEnv
       env2 <- nullEnv
-      evalProgram env1 $ Program []
+      evalQuietProgram env1 $ Program []
 
       assertEqual env1 env2
   ]

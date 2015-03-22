@@ -31,25 +31,25 @@ fromList :: [(String, Toplevel)] -> IO Env
 fromList = newIORef . Map.fromList
 
 -- | Evaluates a gramatically valid program.
-evalProgram :: Env -> Program -> IO ()
-evalProgram env (Program ts) = forM_ ts $ evalToplevel env
+evalProgram :: (String -> IO ()) -> Env -> Program -> IO ()
+evalProgram action env (Program ts) = forM_ ts $ evalToplevel action env
 
 -- | Evaluates a toplevel construct.
-evalToplevel :: Env -> Toplevel -> IO ()
-evalToplevel env t@(Type name sig cons) = do
+evalToplevel :: (String -> IO ()) -> Env -> Toplevel -> IO ()
+evalToplevel action env t@(Type name sig cons) = do
   checkTypeSignature env name sig
   modifyIORef env (Map.insert name t)
   forM_ cons $ \c@(Constructor consName _ sig _) -> do
                       checkConsSignature env consName sig
                       modifyIORef env (Map.insert consName t)
-evalToplevel env f@(Func ss lambdas) = do
+evalToplevel action env f@(Func ss lambdas) = do
   checkFuncSignature env ss
   forM_ ss $ \s@(name, _) -> modifyIORef env (Map.insert name $ Func [s] lambdas)
   checkFuncLambdas env ss lambdas
-evalToplevel env print@(Print exp) = do
+evalToplevel action env print@(Print exp) = do
   e <- readIORef env
   evalExp <- forM exp $ evalExpression e
-  putStrLn $ showExpressions evalExp
+  action $ showExpressions evalExp
 
 -- | Checks if a signature for a type is valid.
 checkTypeSignature :: Env -> String -> Signature -> IO ()

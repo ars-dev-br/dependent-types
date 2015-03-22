@@ -6,6 +6,7 @@ Description: Utilitary functions and constants for testing the DependentTypes.Se
 module Semantic.Ext
        ( assertEqual
        , assertException
+       , evalQuietProgram
        , naturals
        , booleans
        ) where
@@ -25,10 +26,14 @@ assertEqual envRef1 envRef2 = do
   env2 <- readIORef envRef2
   HUnit.assertEqual "" env1 env2
 
+-- | Evaluates a Program, making sure it does not print anything.
+evalQuietProgram :: Env -> Program -> IO ()
+evalQuietProgram env p = evalProgram (assertFailure . ("unexpected output: "++)) env p
+
 -- | Asserts that an exception of type ErrorCall was thrown.
 assertException :: Env -> Program -> IO ()
 assertException env p = do
-  except <- try $ evalProgram env p :: IO (Either ErrorCall ())
+  except <- try $ evalQuietProgram env p :: IO (Either ErrorCall ())
   case except of
    Right p -> assertFailure "Invalid program was accepted."
    Left  e -> return ()
@@ -43,6 +48,7 @@ nat = Type "Nat" (Signature ["Type"]) [ Constructor "zero" (Args []) (Signature 
                                       , Constructor "suc" (Args []) (Signature ["Nat", "Nat"])
                                         NoConstraint ]
 
+-- | Type definition for the booleans.
 booleans :: [(String, Toplevel)]
 booleans = [("Bool", bool), ("true", bool), ("false", bool)]
 

@@ -16,7 +16,7 @@ typeTests = testGroup "Type Definitions"
       env2 <- fromList [("Void", Type "Void" (Signature ["Type"]) [])]
 
       case parse "type Void : Type." of
-       Right p -> evalProgram env1 p
+       Right p -> evalQuietProgram env1 p
        Left  e -> assertFailure $ show e
 
       assertEqual env1 env2
@@ -29,7 +29,7 @@ typeTests = testGroup "Type Definitions"
       env2 <- fromList [("Unit", unit), ("unit", unit)]
 
       case parse "type Unit : Type where unit : Unit." of
-       Right p -> evalProgram env1 p
+       Right p -> evalQuietProgram env1 p
        Left  e -> assertFailure $ show e
 
       assertEqual env1 env2
@@ -52,7 +52,7 @@ typeTests = testGroup "Type Definitions"
     do
       env <- nullEnv
       case parse "type Void : Type. type Valid : Void -> Type." of
-       Right p -> evalProgram env p
+       Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Type constructor depending on defined type" $
@@ -62,7 +62,7 @@ typeTests = testGroup "Type Definitions"
                  \  lowerBound : Bounded;\n\
                  \  upperBound : Bounded;\n\
                  \  bounded    : Nat -> Bounded." of
-       Right p -> evalProgram env p
+       Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Type constructor depending on undefined type" $

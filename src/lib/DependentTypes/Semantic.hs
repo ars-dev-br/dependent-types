@@ -266,8 +266,8 @@ evalList e ((ExpId expId):expArgs) =
 
    findLambda ls = find findLambda' ls
    findLambda' (Lambda name (Args ((ExpId argId):_)) exp) =
-     argId `Map.member` e && (ExpId argId) == (head expArgs)
-
+     argId `Map.member` e && ExpId argId == head expArgs ||
+     argId `Map.notMember` e && name == expId
 
 bindVars :: Map String Toplevel -> Args -> [Expression] -> Map String Toplevel
 bindVars e (Args []) [] = e

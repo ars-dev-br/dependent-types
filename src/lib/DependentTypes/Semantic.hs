@@ -16,6 +16,7 @@ import Data.IORef
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 import DependentTypes.Data
 
 -- | Mutable map with current program definitions.
@@ -31,14 +32,7 @@ fromList = newIORef . Map.fromList
 
 -- | Evaluates a gramatically valid program.
 evalProgram :: Env -> Program -> IO ()
-evalProgram env (Program t) = evalToplevels env t
-
--- | Evaluates a list of toplevel constructs in order.
-evalToplevels :: Env -> [Toplevel] -> IO ()
-evalToplevels env []     = return ()
-evalToplevels env (t:ts) = do
-  evalToplevel env t
-  evalToplevels env ts
+evalProgram env (Program ts) = forM_ ts $ evalToplevel env
 
 -- | Evaluates a toplevel construct.
 evalToplevel :: Env -> Toplevel -> IO ()
@@ -50,8 +44,8 @@ evalToplevel env t@(Type name sig cons) = do
                       modifyIORef env (Map.insert consName t)
 evalToplevel env f@(Func ss lambdas) = do
   checkFuncSignature env ss
+  forM_ ss $ \s@(name, _) -> modifyIORef env (Map.insert name $ Func [s] lambdas)
   checkFuncLambdas env ss lambdas
-  forM_ ss $ \s -> modifyIORef env (Map.insert (fst s) $ Func [s] lambdas)
 evalToplevel env print@(Print exp) = do
   evalExp <- evalExpression env exp
   putStrLn $ printExpression evalExp ++ "."
@@ -116,23 +110,107 @@ checkLambdaArgs env name ss (Args args) = do
   where
     eqName (sigName, _) = sigName == name
 
+-- | Checks if the body of a function uses an invalid symbol.  This may be both
+-- that an undefined symbol is used or that a symbol is called with the wrong
+-- number of arguments.
 checkLambdaBody :: Env -> String -> [(String, Signature)] -> Args -> Expression -> IO ()
-checkLambdaBody env name ss (Args args) (ExpId expId) = do
+checkLambdaBody env name ss args exp@(ExpId expId) = do
   e <- readIORef env
-  when (invalidId e ss args expId) $ error (expId ++ ": undefined symbol")
-    where
-      invalidId e ss args expId = expId `Map.notMember` e &&
-                                  all notInArgExpId args &&
-                                  all notEqSigExpId ss
-
-      notInArgExpId arg = case arg of
-                           ExpId arg -> arg /= expId
-                           ExpList expList -> all notInArgExpId expList
-
-      notEqSigExpId (sigName, _) = sigName /= expId
-
-checkLambdaBody env name ss args (ExpList expList) = do
+  when (undefinedId e ss args expId) $ error (expId ++ ": undefined symbol")
+  -- when (wrongArgs e ss args exp) $ error (expId ++ ": invalid arguments")
+checkLambdaBody env name ss args exp@(ExpList expList) = do
   forM_ expList (checkLambdaBody env name ss args)
+  e <- readIORef env
+  case checkArgs e ss args exp of
+   Right ()  -> return ()
+   Left name -> error (name ++ ": invalid arguments")
+
+-- | Checks if an id is undefined (i.e. it's neither a type, a constructor, a
+-- function nor one argument).
+undefinedId :: Map String Toplevel -> [(String, Signature)] -> Args -> String -> Bool
+undefinedId e ss (Args args) expId = expId `Map.notMember` e &&
+                                     all notEqExpId args &&
+                                     all notEqExpId' ss
+  where
+    notEqExpId arg = case arg of
+                      ExpId argExp   -> argExp /= expId
+                      ExpList argExp -> all notEqExpId argExp
+
+    notEqExpId' (sigName, _) = sigName /= expId
+
+-- | Checks if a symbol is being called with the wrong number/type of arguments.
+checkArgs :: Map String Toplevel -> [(String, Signature)] -> Args -> Expression -> Either String ()
+checkArgs e ss (Args args) (ExpId expId) = do
+  when (expId `Map.member` e) $ checkIdEnv e expId
+  when (any eqExpId args)     $ checkIdArgs args expId
+  when (any eqExpId' ss)      $ checkIdSigs ss expId
+    where
+      eqExpId arg = case arg of
+                     ExpId argExp   -> argExp == expId
+                     ExpList argExp -> any eqExpId argExp
+
+      eqExpId' (sigName, _) = sigName == expId
+
+checkArgs e ss args (ExpList [ExpId expId]) = checkArgs e ss args (ExpId expId)
+checkArgs e ss args@(Args as) (ExpList expList@((ExpId expId):expTail)) = do
+  forM_ expTail $ checkArgs e ss args
+  when (expId `Map.member` e) $ checkCallEnv e expList
+  when (any eqExpId ss)       $ checkCallSigs ss expList
+    where
+      eqExpId (sigName, _) = sigName == expId
+
+-- | Checks if a symbol is being called with the wrong number/type of arguments
+-- according to the environment.
+checkIdEnv :: Map String Toplevel -> String -> Either String ()
+checkIdEnv e expId = do
+  case expId `Map.lookup` e of
+   Just (Type name (Signature ss)  cons) | name == expId -> when (length ss /= 1) $ Left expId
+                                         | otherwise     -> checkIdCons cons expId
+   Just (Func [(_, (Signature ss))] _) -> when (length ss /= 1) $ Left expId
+   Nothing -> Left expId
+
+checkIdCons :: [Constructor] -> String -> Either String ()
+checkIdCons cs expId = forM_ cs checkIdCons'
+  where
+    checkIdCons' (Constructor name _ (Signature sig) _) = do
+      when (name == expId && length sig /= 1) $ Left expId
+
+-- | Checks if a symbol is being called with the wrong number/type of arguments
+-- according to the arguments of a function.
+checkIdArgs :: [Expression] -> String -> Either String ()
+checkIdArgs args expId = Right ()
+
+-- | Checks if a symbol is being called with the wrong number/type of arguments
+-- according to the signature of a function being defined.
+checkIdSigs :: [(String, Signature)] -> String -> Either String ()
+checkIdSigs ss expId = forM_ ss checkIdSigs'
+  where
+    checkIdSigs' (name, (Signature sig)) = do
+      when (name == expId && length sig /= 1) $ Left expId
+
+-- | Checks if a call is being made with the wrong number/type of arguments
+-- according to the environment.
+checkCallEnv :: Map String Toplevel -> [Expression] -> Either String ()
+checkCallEnv e exp@((ExpId expId):_) = do
+  case expId `Map.lookup` e of
+   Just (Type name (Signature ss) cons) | name == expId -> when (length exp /= length ss) $ Left expId
+                                        | otherwise     -> checkCallCons cons exp
+   Just (Func [(_, (Signature ss))] _) -> when (length exp /= length ss) $ Left expId
+   Nothing -> Left expId
+
+checkCallCons :: [Constructor] -> [Expression] -> Either String ()
+checkCallCons cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
+  where
+    checkCallCons' (Constructor name _ (Signature ss) _) = do
+      when (name == expId && length exp /= length ss) $ Left expId
+
+-- | Checks if a call is being made with the wrong number/type of arguments
+-- according to the signature of a function being defined.
+checkCallSigs :: [(String, Signature)] -> [Expression] -> Either String ()
+checkCallSigs ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
+  where
+    checkCallSigs' (name, (Signature ss)) = do
+      when (name == expId && length ss /= length exp) $ Left expId
 
 -- | Evaluates an expression.
 evalExpression :: Env -> Expression -> IO Expression

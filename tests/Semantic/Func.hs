@@ -62,7 +62,7 @@ funcTests = testGroup "Function Definitions"
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Function using wrong number of arguments for function call" $
+  , testCase "Function using more arguments for function call" $
     do
       env <- fromList naturals
       case parse "func addOne : Nat -> Nat where addOne x = suc x.\n\
@@ -70,10 +70,25 @@ funcTests = testGroup "Function Definitions"
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Function using wrong number of arguments for constructor" $
+  , testCase "Function using less arguments for function call" $
+    do
+      env <- fromList naturals
+      case parse "func addOne : Nat -> Nat where addOne x = suc x.\n\
+                 \func invalid : Nat -> Nat where invalid x = addOne." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function using more arguments for constructor" $
     do
       env <- fromList naturals
       case parse "func addOne : Nat -> Nat where addOne x = suc x x." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function using less arguments for constructor" $
+    do
+      env <- fromList naturals
+      case parse "func addOne : Nat -> Nat where addOne x = suc." of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 

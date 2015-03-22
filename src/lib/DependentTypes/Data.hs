@@ -38,7 +38,8 @@ data Program = Program [Toplevel]
 -- | Toplevel constructs.
 data Toplevel = Type String Signature [Constructor]       -- ^ A type declaration.
               | Func [(String, Signature)] [Lambda]       -- ^ A function declaration.
-              | Print [Expression]                          -- ^ A print declaration.
+              | Print [Expression]                        -- ^ A print declaration.
+              | Var Expression                            -- ^ Internally used for variable bindings
               deriving (Show, Eq)
 
 -- | A type constructor.

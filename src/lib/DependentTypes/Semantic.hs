@@ -168,6 +168,7 @@ checkIdEnv e expId = do
    Just (Type name (Signature ss)  cons) | name == expId -> when (length ss /= 1) $ Left expId
                                          | otherwise     -> checkIdCons cons expId
    Just (Func [(_, (Signature ss))] _) -> when (length ss /= 1) $ Left expId
+   Just (Var exp) -> Right ()
    Nothing -> Left expId
 
 checkIdCons :: [Constructor] -> String -> Either String ()
@@ -197,6 +198,7 @@ checkCallEnv e exp@((ExpId expId):_) = do
    Just (Type name (Signature ss) cons) | name == expId -> when (length exp /= length ss) $ Left expId
                                         | otherwise     -> checkCallCons cons exp
    Just (Func [(_, (Signature ss))] _) -> when (length exp /= length ss) $ Left expId
+   Just (Var exp) -> Left expId
    Nothing -> Left expId
 
 checkCallCons :: [Constructor] -> [Expression] -> Either String ()
@@ -215,36 +217,61 @@ checkCallSigs ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
 
 -- | Evaluates an expression.
 evalExpression :: Map String Toplevel -> Expression -> IO Expression
-evalExpression e exp = do
+evalExpression e exp =
   case tryEvalExpression e exp of
    Right exp -> return exp
    Left err -> error err
 
 -- | Tries to evaluate an expression
 tryEvalExpression :: Map String Toplevel -> Expression -> Either String Expression
-tryEvalExpression e exp@(ExpId expId) = do
+tryEvalExpression e exp@(ExpId expId) =
   if undefinedId e [] (Args []) expId
     then Left $ expId ++ ": undefined symbol"
     else case checkIdEnv e expId of
           Right () -> evalId e expId
           Left _   -> Left $ expId ++ ": invalid arguments"
 
-tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) = do
+tryEvalExpression e (ExpList [exp]) = tryEvalExpression e exp
+
+tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) =
   case forM expTail $ tryEvalExpression e of
    Right expArgs -> case checkCallEnv e $  (ExpId expId):expArgs of
-                     Right () -> Right (ExpList $ (ExpId expId):expArgs)
+                     Right () -> evalList e $ (ExpId expId):expArgs
                      Left err -> Left $ err ++ ": invalid arguments"
    Left  name    -> Left name
 
+-- | Evaluates a single symbol, such as a parameterless contructor or function.
 evalId :: Map String Toplevel -> String -> Either String Expression
-evalId e expId = do
+evalId e expId =
   case expId `Map.lookup` e of
    Just (Type _ _ _) -> Right (ExpId expId)
-   Just (Func _ ls)  -> evalLambda e ls expId
+   Just (Func _ [l])  -> evalLambda e l expId
+   Just (Var exp)    -> Right exp
    _                 -> Left $ expId ++ ": undefined symbol"
   where
-    evalLambda e ((Lambda _ _ exp):ls) expId = tryEvalExpression e exp
+    evalLambda e (Lambda _ _ exp) expId = tryEvalExpression e exp
 
+evalList :: Map String Toplevel -> [Expression] -> Either String Expression
+evalList e ((ExpId expId):expArgs) =
+  case expId `Map.lookup` e of
+   Just (Type _ _ _) -> Right (ExpList $ (ExpId expId):expArgs)
+   Just (Func _ ls)  -> evalLambdas e ls
+   _                 -> Left $ expId ++ ": undefined symbol"
+  where
+   evalLambdas e ls =
+     case findLambda ls of
+      Just (Lambda _ args exp) -> let env = bindVars e args expArgs
+                                  in  tryEvalExpression env exp
+      Nothing                  -> Left $ expId ++ ": no matching pattern found"
+
+   findLambda ls = find findLambda' ls
+   findLambda' (Lambda name (Args ((ExpId argId):_)) exp) =
+     argId `Map.member` e && (ExpId argId) == (head expArgs)
+
+
+bindVars :: Map String Toplevel -> Args -> [Expression] -> Map String Toplevel
+bindVars e (Args []) [] = e
+bindVars e (Args ((ExpId name):as)) (exp:exps) = Map.insert name (Var exp) $ bindVars e (Args as) exps
 
 -- | Converts Expressions to a String.
 showExpressions :: [Expression] -> String

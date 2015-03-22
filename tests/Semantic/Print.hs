@@ -7,7 +7,11 @@ import DependentTypes.Parser
 import DependentTypes.Semantic
 import Semantic.Ext hiding (assertEqual)
 import Test.Tasty
-import Test.Tasty.HUnit
+import Test.Tasty.HUnit hiding (assertEqual)
+import qualified Test.Tasty.HUnit as HUnit (assertEqual)
+
+assertEqual :: String -> String -> IO ()
+assertEqual = HUnit.assertEqual ""
 
 printTests = testGroup "Print Statements"
   [ testCase "Printing undefined value" $
@@ -21,28 +25,28 @@ printTests = testGroup "Print Statements"
     do
       env <- fromList naturals
       case parse "print zero." of
-       Right p -> evalProgram (assertEqual "" "zero.") env p
+       Right p -> evalProgram (assertEqual "zero.") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing list of simple constructors" $
     do
       env <- fromList $ naturals ++ booleans
       case parse "print zero; true; false." of
-       Right p -> evalProgram (assertEqual "" "zero; true; false.") env p
+       Right p -> evalProgram (assertEqual "zero; true; false.") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing constructor with arguments" $
     do
       env <- fromList naturals
       case parse "print (suc zero)." of
-       Right p -> evalProgram (assertEqual "" "(suc zero).") env p
+       Right p -> evalProgram (assertEqual "(suc zero).") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing list of constructors with arguments" $
     do
       env <- fromList naturals
       case parse "print (suc zero); (suc (suc zero)); (suc (suc (suc zero)))." of
-       Right p -> evalProgram (assertEqual "" "(suc zero); (suc (suc zero)); (suc (suc (suc zero))).") env p
+       Right p -> evalProgram (assertEqual "(suc zero); (suc (suc zero)); (suc (suc (suc zero))).") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing constant" $
@@ -50,7 +54,16 @@ printTests = testGroup "Print Statements"
       env <- fromList naturals
       case parse "func one : Nat where one = suc zero.\n\
                  \print one." of
-       Right p -> evalProgram (assertEqual "" "(suc zero).") env p
+       Right p -> evalProgram (assertEqual "(suc zero).") env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing function with arguments" $
+    do
+      env <- fromList naturals
+      case parse "func next : Nat -> Nat where\n\
+                 \  next x = suc x.\n\
+                 \print (next (suc zero))." of
+       Right p -> evalProgram (assertEqual "(suc (suc zero)).") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing function with pattern matching" $
@@ -60,8 +73,8 @@ printTests = testGroup "Print Statements"
                  \  not true  = false;\n\
                  \  not false = true.\n\
                  \\n\
-                 \print (not true)." of
-       Right p -> evalProgram (assertEqual "" "false.")  env p
+                 \print (not true); (not false)." of
+       Right p -> evalProgram (assertEqual "false; true.")  env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing function with arguments and pattern matching" $
@@ -73,7 +86,7 @@ printTests = testGroup "Print Statements"
                  \  add (suc x) y    = suc (add x y).\n\
                  \\n\
                  \print (add (suc zero) (suc (suc zero)))." of
-       Right p -> evalProgram (assertEqual "" "(suc (suc (suc zero))).") env p
+       Right p -> evalProgram (assertEqual "(suc (suc (suc zero))).") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing list of functions" $
@@ -84,7 +97,7 @@ printTests = testGroup "Print Statements"
                  \  not false = true.\n\
                  \\n\
                  \print (not true); (not false)." of
-       Right p -> evalProgram (assertEqual "" "false; true.") env p
+       Right p -> evalProgram (assertEqual "false; true.") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Printing constructor with more arguments" $
@@ -120,6 +133,6 @@ printTests = testGroup "Print Statements"
       env <- fromList $ naturals
       case parse "func two : Nat where two = suc (suc zero).\n\
                  \print (suc two)." of
-       Right p -> evalProgram (assertEqual "" "(suc (suc (suc zero))).") env p
+       Right p -> evalProgram (assertEqual "(suc (suc (suc zero))).") env p
        Left  e -> assertFailure $ show e
   ]

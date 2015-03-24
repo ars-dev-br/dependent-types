@@ -113,7 +113,7 @@ checkLambdaArgs env name ss (Args args) = do
 
 -- | Checks if the body of a function uses an invalid symbol.  This may be both
 -- that an undefined symbol is used or that a symbol is called with the wrong
--- number of arguments.
+-- number/type of arguments.
 checkLambdaBody :: Env -> String -> [(String, Signature)] -> Args -> Expression -> IO ()
 checkLambdaBody env name ss args exp@(ExpId expId) = do
   e <- readIORef env
@@ -197,7 +197,7 @@ checkCallEnv e exp@((ExpId expId):_) = do
   case expId `Map.lookup` e of
    Just (Type name (Signature ss) cons) | name == expId -> when (length exp /= length ss) $ Left expId
                                         | otherwise     -> checkCallCons cons exp
-   Just (Func [(_, (Signature ss))] _) -> when (length exp /= length ss) $ Left expId
+   Just (Func [(_, (Signature ss))] _) -> when (not $ isTypeAssignable exp ss) $ Left expId
    Just (Var exp) -> Left expId
    Nothing -> Left expId
 
@@ -205,7 +205,7 @@ checkCallCons :: [Constructor] -> [Expression] -> Either String ()
 checkCallCons cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
   where
     checkCallCons' (Constructor name _ (Signature ss) _) = do
-      when (name == expId && length exp /= length ss) $ Left expId
+      when (name == expId && (not $ isTypeAssignable exp ss)) $ Left expId
 
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to the signature of a function being defined.
@@ -213,7 +213,7 @@ checkCallSigs :: [(String, Signature)] -> [Expression] -> Either String ()
 checkCallSigs ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
   where
     checkCallSigs' (name, (Signature ss)) = do
-      when (name == expId && length ss /= length exp) $ Left expId
+      when (name == expId && (not $ isTypeAssignable exp ss)) $ Left expId
 
 -- | Evaluates an expression.
 evalExpression :: Map String Toplevel -> Expression -> IO Expression

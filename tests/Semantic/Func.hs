@@ -151,4 +151,41 @@ funcTests = testGroup "Function Definitions"
       case parse "func otherZero : Nat where otherZero = newZero." of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
+
+  , testCase "Function which calls other function with wrong argument type" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func ignoreTwo : Nat -> Nat -> Nat where\n\
+                 \  ignoreTwo x y = zero.\n\
+                 \func invalid : Nat where\n\
+                 \  invalid = ignoreTwo (ignoreTwo true false) zero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function which calls other function with wrong return type" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func ignoreTwo : Nat -> Nat -> Bool where\n\
+                 \  ignoreTwo x y = false.\n\
+                 \func invalid : Nat where\n\
+                 \  invalid = ignoreTwo (ignoreTwo zero zero) zero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function which returns single constructor of wrong type" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func ignoreTwo : Nat -> Nat -> Bool where\n\
+                 \  ignoreTwo x y = zero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Function which returns constructor of wrong type" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func ignoreTwo : Nat -> Nat -> Bool where\n\
+                 \  ignoreTwo x y = suc zero." of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
   ]

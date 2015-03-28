@@ -17,6 +17,7 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import Debug.Trace
 import DependentTypes.Data
 
 -- | Mutable map with current program definitions.
@@ -75,12 +76,26 @@ isValidType m (TypeId name) = case Map.lookup name m of
                                Just (Type n (Signature [x]) _) -> n == name
                                _                               -> False
 isValidType m (DepType name es) = case Map.lookup name m of
-                                   Just (Type n (Signature ts) _) -> n == name && isTypeAssignable es ts
+                                   Just (Type n (Signature ts) _) -> n == name && isTypeAssignable m es ts
                                    _                              -> False
 
 -- | Checks if a list of expressions is assignable to a list of types.
-isTypeAssignable :: [Expression] -> [TypeDef] -> Bool
-isTypeAssignable es ts = length es == length ts
+isTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
+isTypeAssignable m [] [] = False
+isTypeAssignable m [ExpId expId] [TypeId typeId] =
+  case Map.lookup expId m of
+   Just (Type typeName _ cons)         -> typeName == typeId
+   Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
+   Just (Var _)                        -> True
+   Nothing                             -> True
+isTypeAssignable m [ExpId expId] [DepType typeId _] = False
+isTypeAssignable m (expHead@(ExpId expId):expTail) ts =
+  1 + length expTail == length ts &&
+  isTypeAssignable m [expHead] [(last ts)] &&
+  (all (==True) $ zipWith isTypeAssignable' expTail ts)
+  where
+    isTypeAssignable' exp@(ExpId expId) t = isTypeAssignable m [exp] [t]
+    isTypeAssignable' (ExpList (expHead:expTail)) t = isTypeAssignable m [expHead] [t]
 
 -- | Checks if a signature for a function is valid.
 checkFuncSignature :: Env -> [(String, Signature)] -> IO ()
@@ -118,6 +133,9 @@ checkLambdaBody :: Env -> String -> [(String, Signature)] -> Args -> Expression 
 checkLambdaBody env name ss args exp@(ExpId expId) = do
   e <- readIORef env
   when (undefinedId e ss args expId) $ error (expId ++ ": undefined symbol")
+  forM_ ss $ \(sigName, Signature ts) ->
+              when (sigName == name && (not $ isTypeAssignable e [exp] [last ts])) $
+              error (expId ++ ": invalid type")
   -- when (wrongArgs e ss args exp) $ error (expId ++ ": invalid arguments")
 checkLambdaBody env name ss args exp@(ExpList expList) = do
   forM_ expList (checkLambdaBody env name ss args)
@@ -156,7 +174,7 @@ checkArgs e ss args (ExpList [ExpId expId]) = checkArgs e ss args (ExpId expId)
 checkArgs e ss args@(Args as) (ExpList expList@((ExpId expId):expTail)) = do
   forM_ expTail $ checkArgs e ss args
   when (expId `Map.member` e) $ checkCallEnv e expList
-  when (any eqExpId ss)       $ checkCallSigs ss expList
+  when (any eqExpId ss)       $ checkCallSigs e ss expList
     where
       eqExpId (sigName, _) = sigName == expId
 
@@ -196,24 +214,24 @@ checkCallEnv :: Map String Toplevel -> [Expression] -> Either String ()
 checkCallEnv e exp@((ExpId expId):_) = do
   case expId `Map.lookup` e of
    Just (Type name (Signature ss) cons) | name == expId -> when (length exp /= length ss) $ Left expId
-                                        | otherwise     -> checkCallCons cons exp
-   Just (Func [(_, (Signature ss))] _) -> when (not $ isTypeAssignable exp ss) $ Left expId
+                                        | otherwise     -> checkCallCons e cons exp
+   Just (Func [(_, (Signature ss))] _) -> when (not $ isTypeAssignable e exp ss) $ Left expId
    Just (Var exp) -> Left expId
    Nothing -> Left expId
 
-checkCallCons :: [Constructor] -> [Expression] -> Either String ()
-checkCallCons cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
+checkCallCons :: Map String Toplevel -> [Constructor] -> [Expression] -> Either String ()
+checkCallCons e cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
   where
     checkCallCons' (Constructor name _ (Signature ss) _) = do
-      when (name == expId && (not $ isTypeAssignable exp ss)) $ Left expId
+      when (name == expId && (not $ isTypeAssignable e exp ss)) $ Left expId
 
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to the signature of a function being defined.
-checkCallSigs :: [(String, Signature)] -> [Expression] -> Either String ()
-checkCallSigs ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
+checkCallSigs :: Map String Toplevel -> [(String, Signature)] -> [Expression] -> Either String ()
+checkCallSigs e ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
   where
     checkCallSigs' (name, (Signature ss)) = do
-      when (name == expId && (not $ isTypeAssignable exp ss)) $ Left expId
+      when (name == expId && (not $ isTypeAssignable e exp ss)) $ Left expId
 
 -- | Evaluates an expression.
 evalExpression :: Map String Toplevel -> Expression -> IO Expression

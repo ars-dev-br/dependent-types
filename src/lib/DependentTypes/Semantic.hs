@@ -17,7 +17,6 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
-import Debug.Trace
 import DependentTypes.Data
 
 -- | Mutable map with current program definitions.
@@ -39,13 +38,13 @@ evalProgram action env (Program ts) = forM_ ts $ evalToplevel action env
 evalToplevel :: (String -> IO ()) -> Env -> Toplevel -> IO ()
 evalToplevel action env t@(Type name sig cons) = do
   checkTypeSignature env name sig
-  modifyIORef env (Map.insert name t)
+  modifyIORef env (name `Map.insert` t)
   forM_ cons $ \c@(Constructor consName _ sig _) -> do
                       checkConsSignature env consName sig
-                      modifyIORef env (Map.insert consName t)
+                      modifyIORef env (consName `Map.insert` t)
 evalToplevel action env f@(Func ss lambdas) = do
   checkFuncSignature env ss
-  forM_ ss $ \s@(name, _) -> modifyIORef env (Map.insert name $ Func [s] lambdas)
+  forM_ ss $ \s@(name, _) -> modifyIORef env (name `Map.insert` Func [s] lambdas)
   checkFuncLambdas env ss lambdas
 evalToplevel action env print@(Print exp) = do
   e <- readIORef env
@@ -72,10 +71,10 @@ checkConsSignature env name (Signature ss) = do
 
 -- | Checks if a type name refers to an existing type with the same arity.
 isValidType :: Map String Toplevel -> TypeDef -> Bool
-isValidType m (TypeId name) = case Map.lookup name m of
+isValidType m (TypeId name) = case name `Map.lookup` m of
                                Just (Type n (Signature [x]) _) -> n == name
                                _                               -> False
-isValidType m (DepType name es) = case Map.lookup name m of
+isValidType m (DepType name es) = case name `Map.lookup` m of
                                    Just (Type n (Signature ts) _) -> n == name && isTypeAssignable m es ts
                                    _                              -> False
 
@@ -189,6 +188,8 @@ checkIdEnv e expId = do
    Just (Var exp) -> Right ()
    Nothing -> Left expId
 
+-- | Checks if a symbol is being called with the wrong number/type of arguments
+-- according to a type constructor.
 checkIdCons :: [Constructor] -> String -> Either String ()
 checkIdCons cs expId = forM_ cs checkIdCons'
   where
@@ -219,6 +220,8 @@ checkCallEnv e exp@((ExpId expId):_) = do
    Just (Var exp) -> Left expId
    Nothing -> Left expId
 
+-- | Checks if a call is being made with the wrong number/type of arguments
+-- according to a type constructor
 checkCallCons :: Map String Toplevel -> [Constructor] -> [Expression] -> Either String ()
 checkCallCons e cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
   where
@@ -238,7 +241,7 @@ evalExpression :: Map String Toplevel -> Expression -> IO Expression
 evalExpression e exp =
   case tryEvalExpression e exp of
    Right exp -> return exp
-   Left err -> error err
+   Left err  -> error err
 
 -- | Tries to evaluate an expression
 tryEvalExpression :: Map String Toplevel -> Expression -> Either String Expression
@@ -269,6 +272,7 @@ evalId e expId =
   where
     evalLambda e (Lambda _ _ exp) expId = tryEvalExpression e exp
 
+-- | Evaluates a list of expressions, such as a function call.
 evalList :: Map String Toplevel -> [Expression] -> Either String Expression
 evalList e ((ExpId expId):expArgs) =
   case expId `Map.lookup` e of
@@ -278,21 +282,30 @@ evalList e ((ExpId expId):expArgs) =
   where
    evalLambdas e ls =
      case findLambda ls of
-      Just (Lambda _ args exp) -> let env = bindVars e args expArgs
-                                  in  tryEvalExpression env exp
+      Just (Lambda _ args exp) -> tryEvalExpression (bindVars e args expArgs) exp
       Nothing                  -> Left $ expId ++ ": no matching pattern found"
 
    findLambda ls = find findLambda' ls
-   findLambda' (Lambda name (Args args) _) = all (==True) $ zipWith (match name) args expArgs
+   findLambda' (Lambda name (Args args) _) =
+--     trace ("findLambda': " ++ show (expArgs, args))
+     all (==True) $ zipWith (match name) args expArgs
 
-   match name (ExpId arg) expArg = --traceShow (arg, expArg) $
-                                   arg `Map.member` e && ExpId arg == expArg ||
-                                   arg `Map.notMember` e
+   match name (ExpId arg) expArg = arg `memberAndNotVar` e && ExpId arg == expArg ||
+                                   (not $ arg `memberAndNotVar` e)
    match name (ExpList arg) expArg = True
 
+   memberAndNotVar arg e = case arg `Map.lookup` e of
+                            Just (Var _)      -> False
+                            Just (Func _ _)   -> True
+                            Just (Type _ _ _) -> True
+                            Nothing           -> False
+
+-- | Binds values to their respective variables.
 bindVars :: Map String Toplevel -> Args -> [Expression] -> Map String Toplevel
 bindVars e (Args []) [] = e
-bindVars e (Args ((ExpId name):as)) (exp:exps) = Map.insert name (Var exp) $ bindVars e (Args as) exps
+bindVars e (Args ((ExpId name):as)) (exp:exps) = name `Map.insert` Var exp $ bindVars e (Args as) exps
+bindVars e (Args ((ExpList expList):as)) ((ExpList exp):exps) =
+  bindVars e (Args $ tail expList) (tail exp) `Map.union` bindVars e (Args as) exps
 
 -- | Converts Expressions to a String.
 showExpressions :: [Expression] -> String

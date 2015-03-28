@@ -283,9 +283,12 @@ evalList e ((ExpId expId):expArgs) =
       Nothing                  -> Left $ expId ++ ": no matching pattern found"
 
    findLambda ls = find findLambda' ls
-   findLambda' (Lambda name (Args ((ExpId argId):_)) exp) =
-     argId `Map.member` e && ExpId argId == head expArgs ||
-     argId `Map.notMember` e && name == expId
+   findLambda' (Lambda name (Args args) _) = all (==True) $ zipWith (match name) args expArgs
+
+   match name (ExpId arg) expArg = --traceShow (arg, expArg) $
+                                   arg `Map.member` e && ExpId arg == expArg ||
+                                   arg `Map.notMember` e
+   match name (ExpList arg) expArg = True
 
 bindVars :: Map String Toplevel -> Args -> [Expression] -> Map String Toplevel
 bindVars e (Args []) [] = e

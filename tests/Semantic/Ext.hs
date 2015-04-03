@@ -6,9 +6,10 @@ Description: Utilitary functions and constants for testing the DependentTypes.Se
 module Semantic.Ext
        ( assertEqual
        , assertException
-       , evalQuietProgram
-       , naturals
        , booleans
+       , evalQuietProgram
+       , lists
+       , naturals
        ) where
 
 import Control.Exception
@@ -57,3 +58,18 @@ bool = Type "Bool" (Signature ["Type"]) [ Constructor "false" (Args []) (Signatu
                                           NoConstraint
                                         , Constructor "true" (Args []) (Signature ["Bool"])
                                           NoConstraint ]
+
+-- | Type definition for the List
+lists :: [(String, Toplevel)]
+lists = [("List", depLists), ("nil", depLists), ("cons", depLists)] ++ naturals
+
+depLists :: Toplevel
+depLists = Type "List" (Signature ["Nat", "Type", "Type"])
+           [ Constructor "nil" (Args []) (Signature [DepType "List" [ExpId "zero", ExpId "a"]])
+             NoConstraint
+           , Constructor "cons" (Args []) (Signature [ TypeId "a"
+                                                     , DepType "List" [ExpId "n", ExpId "a"]
+                                                     , DepType "List" [ ExpList [ ExpId "suc"
+                                                                                , ExpId "n" ]
+                                                                      , ExpId "a" ]])
+             NoConstraint]

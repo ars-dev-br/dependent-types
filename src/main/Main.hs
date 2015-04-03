@@ -33,7 +33,7 @@ getCommand = getInput ">>> " >>= getCommand'
   where
     getCommand' input = if any (=='.') input
                         then return input
-                        else getInput "... " >>= \newInput -> getCommand' $ input ++ newInput
+                        else getInput "... " >>= \newInput -> getCommand' $ input ++ "\n" ++  newInput
 
 getInput :: String -> IO String
 getInput output = putStr output >> hFlush stdout >> getLine

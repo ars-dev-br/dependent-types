@@ -8,6 +8,7 @@ import Data.Map (Map)
 import DependentTypes.Data
 import DependentTypes.Parser
 import DependentTypes.Semantic
+import Semantic.DepType
 import Semantic.Ext
 import Semantic.Func
 import Semantic.Print
@@ -16,7 +17,7 @@ import Test.Tasty
 import Test.Tasty.HUnit hiding (assertEqual)
 import qualified Test.Tasty.HUnit as HUnit (assertEqual)
 
-semanticTests = testGroup "Semantic" [emptyTests, typeTests, funcTests, printTests]
+semanticTests = testGroup "Semantic" [emptyTests, typeTests, depTypeTests, funcTests, printTests]
 
 emptyTests = testGroup "Empty Program"
   [ testCase "Empty Program" $

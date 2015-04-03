@@ -287,8 +287,8 @@ evalList e ((ExpId expId):expArgs) =
 
    findLambda ls = find findLambda' ls
    findLambda' (Lambda name (Args args) _) =
---     trace ("findLambda': " ++ show (expArgs, args))
-     all (==True) $ zipWith (match name) args expArgs
+     (name == expId) &&
+     (all (==True) $ zipWith (match name) args expArgs)
 
    match name (ExpId arg) expArg = arg `memberAndNotVar` e && ExpId arg == expArg ||
                                    (not $ arg `memberAndNotVar` e)

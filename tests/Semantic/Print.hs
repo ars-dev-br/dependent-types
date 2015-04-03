@@ -135,4 +135,16 @@ printTests = testGroup "Print Statements"
                  \print (suc two)." of
        Right p -> evalProgram (assertEqual "(suc (suc (suc zero))).") env p
        Left  e -> assertFailure $ show e
+
+  , testCase "Printing mutually recursive functions" $
+    do
+      env <- fromList $ naturals ++ booleans
+      case parse "func isOdd : Nat -> Bool; isEven : Nat -> Bool where\n\
+                 \  isOdd  zero    = false;\n\
+                 \  isEven zero    = true;\n\
+                 \  isOdd  (suc x) = isEven x;\n\
+                 \  isEven (suc x) = isOdd x.\n\
+                 \print (isOdd (suc (suc (suc zero)))); (isEven (suc (suc zero)))." of
+       Right p -> evalProgram (assertEqual "true; true.") env p
+       Left  e -> assertFailure $ show e
   ]

@@ -17,6 +17,7 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import Debug.Trace
 import DependentTypes.Data
 
 -- | Mutable map with current program definitions.
@@ -75,14 +76,14 @@ isValidType m (TypeId name) = case name `Map.lookup` m of
                                Just (Type n (Signature [x]) _) -> n == name
                                _                               -> False
 isValidType m (DepType name es) = case name `Map.lookup` m of
-                                   Just (Type n (Signature ts) _) -> n == name && isTypeAssignable m es ts
+                                   Just (Type n (Signature ts) _) -> n == name && isDepTypeAssignable m es ts
                                    _                              -> False
 
 -- | Checks if a list of expressions is assignable to a list of types.
 isTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
 isTypeAssignable m [] [] = False
 isTypeAssignable m [ExpId expId] [TypeId typeId] =
-  case Map.lookup expId m of
+  case expId `Map.lookup` m of
    Just (Type typeName _ cons)         -> typeName == typeId
    Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
    Just (Var _)                        -> True
@@ -95,6 +96,24 @@ isTypeAssignable m (expHead@(ExpId expId):expTail) ts =
   where
     isTypeAssignable' exp@(ExpId expId) t = isTypeAssignable m [exp] [t]
     isTypeAssignable' (ExpList (expHead:expTail)) t = isTypeAssignable m [expHead] [t]
+
+-- | Checks if a list of expressions is assignable to a list of dependent types.  This is basically
+-- the same as isTypeAssignable, but more lenient about undefined symbols.
+isDepTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
+isDepTypeAssignable m [] [] = False
+isDepTypeAssignable m [ExpId expId] ((TypeId typeId):ts) =
+  case expId `Map.lookup` m of
+   Just (Type typeName _ cons)         -> typeName == typeId
+   Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
+   Just (Var _)                        -> True
+   Nothing                             -> True
+isDepTypeAssignable m [ExpList expList] ts = isTypeAssignable m [head expList] (init ts)
+isDepTypeAssignable m es ts = --traceShow (es, ts) $
+  1 + length es == length ts &&
+  (all (==True) $ zipWith isDepTypeAssignable' es (init ts))
+  where
+    isDepTypeAssignable' exp@(ExpId expId) t = isDepTypeAssignable m [exp] [t]
+    isDepTypeAssignable' (ExpList (expHead:expTail)) t = isDepTypeAssignable m [expHead] [t]
 
 -- | Checks if a signature for a function is valid.
 checkFuncSignature :: Env -> [(String, Signature)] -> IO ()

@@ -19,9 +19,9 @@ bLessOrEqual = lessOrEqual ++
                \  upperBound : Bounded;\n\
                \  bounded    : Nat -> Bounded.\n\
                \type BLessOrEqual : Bounded -> Bounded -> Type where\n\
-               \  bLessLower lowerBound y : (BLessOrEqual lowerBound y);\n\
-               \  bLessUpper x upperBound : (BLessOrEqual x upperBound);\n\
-               \  bLessLift (bounded x) (bounded y) :\n\
+               \  bLessLower lowerBound y : Bounded -> Bounded -> (BLessOrEqual lowerBound y);\n\
+               \  bLessUpper x upperBound : Bounded -> Bounded -> (BLessOrEqual x upperBound);\n\
+               \  bLessLift (bounded x) (bounded y) : Bounded -> Bounded ->\n\
                \    (BLessOrEqual (bounded x) (bounded y)) | LessOrEqual x y."
 
 insert = oList ++
@@ -38,8 +38,8 @@ insert = oList ++
          \             (BLessOrEqual l (bounded y)))."
 
 lessOrEqual = "type LessOrEqual : Nat -> Nat -> Type where\n\
-              \  lessZero zero    y       : (LessOrEqual zero y);\n\
-              \  lessSuc  (suc x) (suc y) : (LessOrEqual (suc x) (suc y)) | LessOrEqual x y."
+              \  lessZero zero    y       : Nat -> Nat -> (LessOrEqual zero y);\n\
+              \  lessSuc  (suc x) (suc y) : Nat -> Nat -> (LessOrEqual (suc x) (suc y)) | LessOrEqual x y."
 
 oList = bLessOrEqual ++
         "type OList : Bounded -> Bounded -> Type where\n\
@@ -218,8 +218,10 @@ depTypeTests = testGroup "Dependent Types"
   , testCase "Printing BLessOrEqual" $
     do
       env <- fromList naturals
-      case parse (bLessOrEqual ++ "print (bLessLower lowerBound zero); (bLessUpper zero upperBound).") of
-       Right p -> evalProgram (assertEqual "(bLessLower lowerBound zero); (bLessUpper zero upperBound).")
+      case parse (bLessOrEqual ++ "print (bLessLower lowerBound (bounded zero));\n\
+                                  \ (bLessUpper (bounded zero) upperBound).") of
+       Right p -> evalProgram (assertEqual "(bLessLower lowerBound (bounded zero)); \
+                                           \(bLessUpper (bounded zero) upperBound).")
                               env p
        Left  e -> assertFailure $ show e
 

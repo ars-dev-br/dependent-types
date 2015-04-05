@@ -12,6 +12,7 @@ module DependentTypes.Semantic
 
 import Control.Exception
 import Control.Monad
+import Data.Char
 import Data.IORef
 import Data.List
 import Data.Map (Map)
@@ -74,10 +75,10 @@ checkConsSignature env name (Signature ss) = do
 isValidType :: Map String Toplevel -> TypeDef -> Bool
 isValidType m (TypeId name) = case name `Map.lookup` m of
                                Just (Type n (Signature [x]) _) -> n == name
-                               _                               -> False
+                               _                               -> isAsciiLower (head name)
 isValidType m (DepType name es) = case name `Map.lookup` m of
                                    Just (Type n (Signature ts) _) -> n == name && isDepTypeAssignable m es ts
-                                   _                              -> False
+                                   _                              -> isAsciiLower (head name)
 
 -- | Checks if a list of expressions is assignable to a list of types.
 isTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
@@ -113,9 +114,8 @@ isDepTypeAssignable m [ExpId expId] ((TypeId typeId):ts) =
    Just (Var _)                        -> True
    Nothing                             -> True
 isDepTypeAssignable m [ExpList expList] ts = isTypeAssignable m [head expList] (init ts)
-isDepTypeAssignable m es ts = --traceShow (es, ts) $
-  1 + length es == length ts &&
-  (all (==True) $ zipWith isDepTypeAssignable' es (init ts))
+isDepTypeAssignable m es ts = 1 + length es == length ts &&
+                              (all (==True) $ zipWith isDepTypeAssignable' es (init ts))
   where
     isDepTypeAssignable' exp@(ExpId expId) t = isDepTypeAssignable m [exp] [t]
     isDepTypeAssignable' (ExpList (expHead:expTail)) t = isDepTypeAssignable m [expHead] [t]

@@ -85,16 +85,18 @@ isTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
 isTypeAssignable m [] [] = False
 isTypeAssignable m [ExpId expId] [TypeId typeId] =
   case expId `Map.lookup` m of
-   Just (Type typeName _ cons)         -> typeName == typeId
+   Just (Type typeName _ cons)         -> typeName == typeId || isAsciiLower (head typeId)
    Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
    Just (Var _)                        -> True
    Nothing                             -> True
 isTypeAssignable m [ExpId expId] [DepType typeId _] =
   case expId `Map.lookup` m of
    Just (Type typeName _ cons)         -> typeName == typeId
-   Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
+   Just (Func [(_, (Signature ss))] _) -> isValidSignature (last ss)
    Just (Var _)                        -> True
    Nothing                             -> True
+  where
+    isValidSignature (DepType depType _) = depType == typeId
 isTypeAssignable m (expHead@(ExpId expId):expTail) ts =
   1 + length expTail == length ts &&
   isTypeAssignable m [expHead] [(last ts)] &&
@@ -109,7 +111,7 @@ isDepTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
 isDepTypeAssignable m [] [] = False
 isDepTypeAssignable m [ExpId expId] ((TypeId typeId):ts) =
   case expId `Map.lookup` m of
-   Just (Type typeName _ cons)         -> typeName == typeId
+   Just (Type typeName _ cons)         -> typeName == typeId || (expId == typeName && typeId == "Type")
    Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
    Just (Var _)                        -> True
    Nothing                             -> True
@@ -158,7 +160,7 @@ checkLambdaBody env name ss args exp@(ExpId expId) = do
   when (undefinedId e ss args expId) $ error (expId ++ ": undefined symbol")
   forM_ ss $ \(sigName, Signature ts) ->
               when (sigName == name && (not $ isTypeAssignable e [exp] [last ts])) $
-              error (expId ++ ": invalid type")
+                error (expId ++ ": invalid type")
   -- when (wrongArgs e ss args exp) $ error (expId ++ ": invalid arguments")
 checkLambdaBody env name ss args exp@(ExpList expList) = do
   forM_ expList (checkLambdaBody env name ss args)
@@ -236,7 +238,7 @@ checkIdSigs ss expId = forM_ ss checkIdSigs'
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to the environment.
 checkCallEnv :: Map String Toplevel -> [Expression] -> Either String ()
-checkCallEnv e exp@((ExpId expId):_) = do
+checkCallEnv e exp@((ExpId expId):_) =
   case expId `Map.lookup` e of
    Just (Type name (Signature ss) cons) | name == expId -> when (length exp /= length ss) $ Left expId
                                         | otherwise     -> checkCallCons e cons exp
@@ -250,14 +252,43 @@ checkCallCons :: Map String Toplevel -> [Constructor] -> [Expression] -> Either 
 checkCallCons e cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
   where
     checkCallCons' (Constructor name _ (Signature ss) _) = do
+      checkInferredTypes e exp
       when (name == expId && (not $ isTypeAssignable e exp ss)) $ Left expId
+
+-- | Checks if the inferred types for type variables are valid.
+checkInferredTypes :: Map String Toplevel -> [Expression] -> Either String ()
+checkInferredTypes env exp = do
+  case checkInferredTypes' env (Map.empty :: Map String Toplevel)  exp of
+   Right _ -> return ()
+   Left  e -> Left e
+  where
+    -- TODO: finish checking inferred types.
+
+    checkInferredTypes' :: Map String Toplevel -> Map String Toplevel -> [Expression] ->
+                           Either String (Map String Toplevel)
+    checkInferredTypes' env binds [ExpId _] = return binds
+    checkInferredTypes' env binds ((ExpId expId):expTail) = do
+      let (Type _ _ cons) = fromJust $ expId `Map.lookup` env
+       in updatingForM binds expTail checkInferredTypes''
+
+    updatingForM :: Map String Toplevel -> [Expression] ->
+                    (Map String Toplevel -> Expression -> Either String (Map String Toplevel)) ->
+                    Either String (Map String Toplevel)
+    updatingForM binds [] fn = return binds
+    updatingForM binds (e:es) fn = case fn binds e of
+                                    Right newBinds -> updatingForM newBinds es fn
+                                    Left  e        -> Left e
+
+    checkInferredTypes'' :: Map String Toplevel -> Expression -> Either String (Map String Toplevel)
+    checkInferredTypes'' binds (ExpId expId) = return binds
+    checkInferredTypes'' binds (ExpList expList) = checkInferredTypes' env binds expList
 
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to the signature of a function being defined.
 checkCallSigs :: Map String Toplevel -> [(String, Signature)] -> [Expression] -> Either String ()
 checkCallSigs e ss exp@((ExpId expId):_) = forM_ ss checkCallSigs'
   where
-    checkCallSigs' (name, (Signature ss)) = do
+    checkCallSigs' (name, (Signature ss)) =
       when (name == expId && (not $ isTypeAssignable e exp ss)) $ Left expId
 
 -- | Evaluates an expression.

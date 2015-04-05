@@ -97,6 +97,7 @@ isTypeAssignable m [ExpId expId] [DepType typeId _] =
    Nothing                             -> True
   where
     isValidSignature (DepType depType _) = depType == typeId
+    isValidSignature (TypeId typeName)   = typeName == typeId
 isTypeAssignable m (expHead@(ExpId expId):expTail) ts =
   1 + length expTail == length ts &&
   isTypeAssignable m [expHead] [(last ts)] &&
@@ -158,16 +159,22 @@ checkLambdaBody :: Env -> String -> [(String, Signature)] -> Args -> Expression 
 checkLambdaBody env name ss args exp@(ExpId expId) = do
   e <- readIORef env
   when (undefinedId e ss args expId) $ error (expId ++ ": undefined symbol")
-  forM_ ss $ \(sigName, Signature ts) ->
+  forM_ ss $ \(sigName, Signature ts) -> do
               when (sigName == name && (not $ isTypeAssignable e [exp] [last ts])) $
                 error (expId ++ ": invalid type")
-  -- when (wrongArgs e ss args exp) $ error (expId ++ ": invalid arguments")
 checkLambdaBody env name ss args exp@(ExpList expList) = do
-  forM_ expList (checkLambdaBody env name ss args)
+  forM_ expList (checkLambdaBody' env name ss args)
   e <- readIORef env
   case checkArgs e ss args exp of
    Right ()  -> return ()
    Left name -> error (name ++ ": invalid arguments")
+  where
+    checkLambdaBody' env name ss args exp@(ExpId _) = checkLambdaBody env name ss args exp
+    checkLambdaBody' env name ss args exp@(ExpList expList) = do
+      e <- readIORef env
+      case checkArgs e ss args exp of
+       Right () -> return ()
+       Left name -> error (name ++ ": invalid arguments")
 
 -- | Checks if an id is undefined (i.e. it's neither a type, a constructor, a
 -- function nor one argument).
@@ -342,25 +349,32 @@ evalList e ((ExpId expId):expArgs) =
 
    findLambda ls = find findLambda' ls
    findLambda' (Lambda name (Args args) _) =
-     (name == expId) &&
-     (all (==True) $ zipWith (match name) args expArgs)
+     (name == expId) && (all (==True) $ zipWith (match name) args expArgs)
 
-   match name (ExpId arg) expArg = arg `memberAndNotVar` e && ExpId arg == expArg ||
-                                   (not $ arg `memberAndNotVar` e)
+   match name (ExpId arg) (ExpId expArg) = (arg `memberAndNotVar` e &&
+                                            arg == expArg) ||
+                                           (not $ arg `memberAndNotVar` e)
+   match name (ExpId arg) (ExpList expList) = not $ arg `memberAndNotVar` e
    match name (ExpList arg) expArg = True
 
-   memberAndNotVar arg e = case arg `Map.lookup` e of
-                            Just (Var _)      -> False
-                            Just (Func _ _)   -> True
-                            Just (Type _ _ _) -> True
-                            Nothing           -> False
 
 -- | Binds values to their respective variables.
 bindVars :: Map String Toplevel -> Args -> [Expression] -> Map String Toplevel
 bindVars e (Args []) [] = e
-bindVars e (Args ((ExpId name):as)) (exp:exps) = name `Map.insert` Var exp $ bindVars e (Args as) exps
+bindVars e (Args ((ExpId name):as)) (exp:exps) =
+  if name `memberAndNotVar` e
+  then bindVars e (Args as) exps
+  else name `Map.insert` Var exp $ bindVars e (Args as) exps
 bindVars e (Args ((ExpList expList):as)) ((ExpList exp):exps) =
   bindVars e (Args $ tail expList) (tail exp) `Map.union` bindVars e (Args as) exps
+
+-- | Checks if a symbol is defined in the environment, but it's not a variable.
+memberAndNotVar :: String -> Map String Toplevel -> Bool
+memberAndNotVar arg e = case arg `Map.lookup` e of
+                         Just (Var _)      -> False
+                         Just (Func _ _)   -> True
+                         Just (Type _ _ _) -> True
+                         Nothing           -> False
 
 -- | Converts Expressions to a String.
 showExpressions :: [Expression] -> String

@@ -47,6 +47,14 @@ oList = bLessOrEqual ++
         \  ocons x xs : Nat -> (OList (bounded x) u) -> \n\
         \                 (BLessOrEqual l (bounded x)) -> (OList l u)."
 
+pairAdd = "func add : Nat -> Nat -> Nat where\n\
+          \  add zero    y    = y;\n\
+          \  add x       zero = x;\n\
+          \  add (suc x) y    = suc (add x y).\n\
+          \func pairAdd : (List n Nat) -> (List n Nat) -> (List n Nat) where\n\
+          \  pairAdd nil         nil         = nil;\n\
+          \  pairAdd (cons x xs) (cons y ys) = cons (add x y) (pairAdd xs ys)."
+
 sumOfOdd = "type Odd : Nat -> Type where\n\
            \  oddOne : (Odd (suc zero));\n\
            \  oddSuc : (Odd n) -> (Odd (suc (suc n))).\n\
@@ -113,29 +121,23 @@ depTypeTests = testGroup "Dependent Types"
   , testCase "pairAdd function definition" $
     do
       env <- fromList lists
-      case parse "func pairAdd : (List n Nat) -> (List n Nat) -> (List n Nat) where\n\
-                 \  pairAdd nil         nil         = nil;\n\
-                 \  pairAdd (cons x xs) (cons y ys) = cons (add x y) (pairAdd xs ys)." of
+      case parse pairAdd of
        Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Calling pairAdd with lists of wrong type" $
     do
       env <- fromList $ lists ++ booleans
-      case parse "func pairAdd : (List n Nat) -> (List n Nat) -> (List n Nat) where\n\
-                 \  pairAdd nil         nil         = nil;\n\
-                 \  pairAdd (cons x xs) (cons y ys) = cons (add x y) (pairAdd xs ys).\n\
-                 \print (pairAdd (cons false nil) (cons true nil))." of
+      case parse (pairAdd ++
+                  "print (pairAdd (cons false nil) (cons true nil)).") of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
   , testCase "Calling pairAdd with lists of different sizes" $
     do
       env <- fromList $ lists ++ booleans
-      case parse "func pairAdd : (List n Nat) -> (List n Nat) -> (List n Nat) where\n\
-                 \  pairAdd nil         nil         = nil;\n\
-                 \  pairAdd (cons x xs) (cons y ys) = cons (add x y) (pairAdd xs ys).\n\
-                 \print (pairAdd (cons zero (cons zero nil)) (cons zero nil))." of
+      case parse (pairAdd ++
+                  "print (pairAdd (cons zero (cons zero nil)) (cons zero nil)).") of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
@@ -172,7 +174,7 @@ depTypeTests = testGroup "Dependent Types"
     do
       env <- fromList naturals
       case parse (sumOfOdd ++ "print (sumOfOdd (oddSuc oddOne) (oddSuc (oddSuc oddOne))).") of
-       Right p -> evalProgram (assertEqual "(oddSuc (oddSuc (oddSuc oddOne))).") env p
+       Right p -> evalProgram (assertEqual "(evenSuc (evenSuc (evenSuc (evenSuc evenZero)))).") env p
        Left  e -> assertFailure $ show e
 
   , testCase "Calling sumOfOdd with even number" $

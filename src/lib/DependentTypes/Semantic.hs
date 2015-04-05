@@ -88,7 +88,12 @@ isTypeAssignable m [ExpId expId] [TypeId typeId] =
    Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
    Just (Var _)                        -> True
    Nothing                             -> True
-isTypeAssignable m [ExpId expId] [DepType typeId _] = False
+isTypeAssignable m [ExpId expId] [DepType typeId _] =
+  case expId `Map.lookup` m of
+   Just (Type typeName _ cons)         -> typeName == typeId
+   Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
+   Just (Var _)                        -> True
+   Nothing                             -> True
 isTypeAssignable m (expHead@(ExpId expId):expTail) ts =
   1 + length expTail == length ts &&
   isTypeAssignable m [expHead] [(last ts)] &&

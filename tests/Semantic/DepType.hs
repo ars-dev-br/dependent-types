@@ -256,7 +256,7 @@ depTypeTests = testGroup "Dependent Types"
                            \  toList (ocons x xs z) = cons x (toList xs).\n\
                            \print (toList (ocons zero (onil (bLessLower lowerBound upperBound))\n\
                            \                          (bLessLower lowerBound upperBound))).") of
-       Right p -> evalProgram (assertEqual "cons zero nil.") env p
+       Right p -> evalProgram (assertEqual "(cons zero nil).") env p
        Left  e -> assertFailure $ show e
 
   , testCase "insert function definition" $

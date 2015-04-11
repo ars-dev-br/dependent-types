@@ -355,7 +355,7 @@ evalList e ((ExpId expId):expArgs) =
                                             arg == expArg) ||
                                            (not $ arg `memberAndNotVar` e)
    match name (ExpId arg) (ExpList expList) = not $ arg `memberAndNotVar` e
-   match name (ExpList arg) expArg = True
+   match name (ExpList (argId:_)) (ExpList (expId:_)) = argId == expId
 
 
 -- | Binds values to their respective variables.

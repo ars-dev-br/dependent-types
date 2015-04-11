@@ -258,9 +258,48 @@ checkCallEnv e exp@((ExpId expId):_) =
 checkCallCons :: Map String Toplevel -> [Constructor] -> [Expression] -> Either String ()
 checkCallCons e cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
   where
-    checkCallCons' (Constructor name _ (Signature ss) _) = do
+    checkCallCons' (Constructor name _ (Signature ss) constraint) | name == expId = do
       checkInferredTypes e exp
+      checkConstraint e exp constraint
       when (name == expId && (not $ isTypeAssignable e exp ss)) $ Left expId
+                                                                  | otherwise = return ()
+
+-- | Checks if a constructor call obeys a constraint.
+checkConstraint :: Map String Toplevel -> [Expression] -> Constraint -> Either String ()
+checkConstraint e es NoConstraint = return ()
+checkConstraint e es@(expHead:expArgs) (Constraint (ExpList c@((ExpId cId):cs))) = do
+  (Type _ _ cs)  <- lookupType e
+  checkConstructors e cs
+  where
+    lookupType e = case cId `Map.lookup` e of
+                    Just t@(Type name _ _) | name == cId -> return t
+                                           | otherwise -> Left $ cId ++ " constraint"
+                    Nothing -> Left $ cId ++ " constraint"
+
+    checkConstructors e cs =
+      case findConstructor cs of
+       Just (Constructor name args sigs constraint) -> checkConstructor e name es args constraint
+       Nothing -> Left $ cId ++ " constraint"
+
+    findConstructor cs = find findConstructor' cs
+    findConstructor' (Constructor _ (Args args) _ _) =
+      all (==True) $ zipWith (match e) args expArgs
+
+    checkConstructor e name ((ExpId expId):expTail) args NoConstraint = return ()
+    checkConstructor e name ((ExpId expId):expTail) args c@(Constraint (ExpList (_:expArgs))) = do
+      case tryEvalExpression (bindVars e args expTail) (ExpList ((ExpId name):expArgs)) of
+       Right _ -> return ()
+       Left  _ -> Left $ cId ++ " constraint"
+
+
+-- | Checks if an expression pattern matches another.
+match :: Map String Toplevel -> Expression -> Expression -> Bool
+match e (ExpId arg) (ExpId expArg) = (arg `memberAndNotVar` e &&
+                                     arg == expArg) ||
+                                     (not $ arg `memberAndNotVar` e)
+match e (ExpId arg) (ExpList expList) = not $ arg `memberAndNotVar` e
+match e (ExpList (argId:_)) (ExpList (expId:_)) = argId == expId
+match e (ExpList _) (ExpId _) = False
 
 -- | Checks if the inferred types for type variables are valid.
 checkInferredTypes :: Map String Toplevel -> [Expression] -> Either String ()
@@ -313,9 +352,7 @@ tryEvalExpression e exp@(ExpId expId) =
     else case checkIdEnv e expId of
           Right () -> evalId e expId
           Left _   -> Left $ expId ++ ": invalid arguments"
-
 tryEvalExpression e (ExpList [exp]) = tryEvalExpression e exp
-
 tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) =
   case forM expTail $ tryEvalExpression e of
    Right expArgs -> case checkCallEnv e $  (ExpId expId):expArgs of
@@ -349,14 +386,7 @@ evalList e ((ExpId expId):expArgs) =
 
    findLambda ls = find findLambda' ls
    findLambda' (Lambda name (Args args) _) =
-     (name == expId) && (all (==True) $ zipWith (match name) args expArgs)
-
-   match name (ExpId arg) (ExpId expArg) = (arg `memberAndNotVar` e &&
-                                            arg == expArg) ||
-                                           (not $ arg `memberAndNotVar` e)
-   match name (ExpId arg) (ExpList expList) = not $ arg `memberAndNotVar` e
-   match name (ExpList (argId:_)) (ExpList (expId:_)) = argId == expId
-
+     (name == expId) && (all (==True) $ zipWith (match e) args expArgs)
 
 -- | Binds values to their respective variables.
 bindVars :: Map String Toplevel -> Args -> [Expression] -> Map String Toplevel

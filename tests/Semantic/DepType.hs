@@ -201,10 +201,17 @@ depTypeTests = testGroup "Dependent Types"
                     env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Printing invalid LessOrEqual" $
+  , testCase "Printing invalid simple LessOrEqual" $
     do
       env <- fromList naturals
       case parse (lessOrEqual ++ "print (lessSuc (suc (suc zero)) zero).") of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing invalid complex LessOrEqual" $
+    do
+      env <- fromList naturals
+      case parse (lessOrEqual ++ "print (lessSuc (suc (suc zero)) (suc zero)).") of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
@@ -225,10 +232,17 @@ depTypeTests = testGroup "Dependent Types"
                               env p
        Left  e -> assertFailure $ show e
 
-  , testCase "Printing invalid BLessOrEqual" $
+  , testCase "Printing simple invalid BLessOrEqual" $
     do
       env <- fromList naturals
       case parse (bLessOrEqual ++ "print (bLessLift (bounded (suc zero)) (bounded zero)).") of
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Printing complex invalid BLessOrEqual" $
+    do
+      env <- fromList naturals
+      case parse (bLessOrEqual ++ "print (bLessLift (bounded (suc (suc zero))) (bounded (suc zero))).") of
        Right p -> assertException env p
        Left  e -> assertFailure $ show e
 

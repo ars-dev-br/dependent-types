@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 
 -- The library where most of the code is.
 library
-  build-depends:       base >=4.7 && <4.8,
+  build-depends:       base >=4.7 && <5,
                        containers >=0.5 && <0.6,
                        parsec >=3.1 && <3.2
   default-language:    Haskell2010
@@ -28,7 +28,7 @@ library
 
 -- The command line interpreter that uses the library above.
 executable dt-cli
-  build-depends:       base >=4.7 && <4.8,
+  build-depends:       base >=4.7 && <5,
                        DependentTypes
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings
@@ -37,7 +37,7 @@ executable dt-cli
 
 -- The test suite for the library.
 test-suite test
-  build-depends:       base >=4.7 && <4.8,
+  build-depends:       base >=4.7 && <5,
                        containers >=0.5 && <0.6,
                        HUnit >=1.2.5 && <1.2.6,
                        QuickCheck >=2.7 && <2.8,

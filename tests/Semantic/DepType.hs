@@ -31,11 +31,16 @@ insert = oList ++
          \    ocons x (onil (BLessOrEqual (bounded x) u)) (BLessOrEqual l (bounded x));\n\
          \  insert x (ocons y ys (BLessOrEqual l y)) (BLessOrEqual l (bounded x))\n\
          \      (BLessOrEqual (bounded x) u) =\n\
-         \    matches (LessOrEqual x y)\n\
+         \    match (LessOrEqual (suc x) (suc y))\n\
          \      (ocons x (ocons y ys (BLessOrEqual (bounded x) (bounded y))) (BLessOrEqual l (bounded x)))\n\
          \      (ocons y (insert x ys (BLessOrEqual (bounded y) (bounded x))\n\
          \             (BLessOrEqual (bounded x) u))\n\
          \             (BLessOrEqual l (bounded y)))."
+
+insertOutput = "(ocons zero (ocons (suc zero)\
+                                 \ (onil (BLessOrEqual (bounded (suc zero)) upperBound))\
+                                 \ (BLessOrEqual lowerBound (bounded (suc zero))))\
+                     \ (BLessOrEqual lowerBound (bounded zero)))."
 
 lessOrEqual = "type LessOrEqual : Nat -> Nat -> Type where\n\
               \  lessZero zero    y       : Nat -> Nat -> (LessOrEqual zero y);\n\
@@ -286,9 +291,9 @@ depTypeTests = testGroup "Dependent Types"
       case parse (insert ++ "print (insert (suc zero)\n\
                             \              (insert zero (onil (bLessLower lowerBound upperBound))\n\
                             \                      (bLessLower lowerBound (bounded zero))\n\
-                            \                      (bLessUpper (bounded zero) upper))\n\
+                            \                      (bLessUpper (bounded zero) upperBound))\n\
                             \              (bLessLower lowerBound (bounded (suc zero)))\n\
                             \              (bLessUpper (bounded (suc zero)) upperBound)).") of
-       Right p -> evalProgram (assertEqual "(cons zero (cons (suc zero) nil)).") env p
+       Right p -> evalProgram (assertEqual insertOutput) env p
        Left  e -> assertFailure $ show e
   ]

@@ -24,11 +24,14 @@ import DependentTypes.Data
 -- | Mutable map with current program definitions.
 type Env = IORef (Map String Toplevel)
 
--- | Creates an empty environment
+-- | Predefined keywords.
+keywords = ["match"]
+
+-- | Creates an empty environment.
 nullEnv :: IO Env
 nullEnv = newIORef Map.empty
 
--- | Creates an environment from a list
+-- | Creates an environment from a list.
 fromList :: [(String, Toplevel)] -> IO Env
 fromList = newIORef . Map.fromList
 
@@ -179,7 +182,8 @@ checkLambdaBody env name ss args exp@(ExpList expList) = do
 -- | Checks if an id is undefined (i.e. it's neither a type, a constructor, a
 -- function nor one argument).
 undefinedId :: Map String Toplevel -> [(String, Signature)] -> Args -> String -> Bool
-undefinedId e ss (Args args) expId = expId `Map.notMember` e &&
+undefinedId e ss (Args args) expId = expId `notElem` keywords &&
+                                     expId `Map.notMember` e &&
                                      all notEqExpId args &&
                                      all notEqExpId' ss
   where
@@ -246,12 +250,14 @@ checkIdSigs ss expId = forM_ ss checkIdSigs'
 -- according to the environment.
 checkCallEnv :: Map String Toplevel -> [Expression] -> Either String ()
 checkCallEnv e exp@((ExpId expId):_) =
-  case expId `Map.lookup` e of
-   Just (Type name (Signature ss) cons) | name == expId -> when (length exp /= length ss) $ Left expId
-                                        | otherwise     -> checkCallCons e cons exp
-   Just (Func [(_, (Signature ss))] _) -> when (not $ isTypeAssignable e exp ss) $ Left expId
-   Just (Var exp) -> Left expId
-   Nothing -> Left expId
+  if expId `elem` keywords
+  then Right ()
+  else case expId `Map.lookup` e of
+        Just (Type name (Signature ss) cons) -> checkCallCons e cons exp
+        Just (Func [(_, (Signature ss))] _) -> when (not $ isTypeAssignable e exp ss) $ Left expId
+        Just (Var exp) -> Left expId
+        Nothing -> Left expId
+checkCallEnv e ((ExpList expList):[]) = checkCallEnv e expList
 
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to a type constructor
@@ -290,7 +296,7 @@ checkConstraint e es@(expHead:expArgs) (Constraint (ExpList c@((ExpId cId):cs)))
       case tryEvalExpression (bindVars e args expTail) (ExpList ((ExpId name):expArgs)) of
        Right _ -> return ()
        Left  _ -> Left $ cId ++ " constraint"
-
+    checkConstructor e name ((ExpList expList):_) args c = checkConstructor e name expList args c
 
 -- | Checks if an expression pattern matches another.
 match :: Map String Toplevel -> Expression -> Expression -> Bool
@@ -298,7 +304,11 @@ match e (ExpId arg) (ExpId expArg) = (arg `memberAndNotVar` e &&
                                      arg == expArg) ||
                                      (not $ arg `memberAndNotVar` e)
 match e (ExpId arg) (ExpList expList) = not $ arg `memberAndNotVar` e
-match e (ExpList (argId:_)) (ExpList (expId:_)) = argId == expId
+match e (ExpList (argId:_)) (ExpList (expId@(ExpId exp):_)) =
+  argId == expId ||
+  case exp `Map.lookup` e of
+   Just (Type typeName _ _) -> ExpId typeName == argId
+   _ -> False
 match e (ExpList _) (ExpId _) = False
 
 -- | Checks if the inferred types for type variables are valid.
@@ -344,7 +354,7 @@ evalExpression e exp =
    Right exp -> return exp
    Left err  -> error err
 
--- | Tries to evaluate an expression
+-- | Tries to evaluate an expression.
 tryEvalExpression :: Map String Toplevel -> Expression -> Either String Expression
 tryEvalExpression e exp@(ExpId expId) =
   if undefinedId e [] (Args []) expId
@@ -354,11 +364,37 @@ tryEvalExpression e exp@(ExpId expId) =
           Left _   -> Left $ expId ++ ": invalid arguments"
 tryEvalExpression e (ExpList [exp]) = tryEvalExpression e exp
 tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) =
-  case forM expTail $ tryEvalExpression e of
-   Right expArgs -> case checkCallEnv e $  (ExpId expId):expArgs of
-                     Right () -> evalList e $ (ExpId expId):expArgs
-                     Left err -> Left $ err ++ ": invalid arguments"
-   Left  name    -> Left name
+  if expId `elem` keywords
+  then tryEvalKeyword e exp
+  else case forM expTail $ tryEvalExpression e of
+        Right expArgs -> case checkCallEnv e $ (ExpId expId):expArgs of
+                          Right () -> evalList e $ (ExpId expId):expArgs
+                          Left err -> Left $ err ++ ": invalid arguments"
+        Left  name    -> Left name
+
+-- | Tries to evaluate a keyword expression.
+tryEvalKeyword :: Map String Toplevel -> Expression -> Either String Expression
+tryEvalKeyword e exp@(ExpList ((ExpId "match"):cond:ifTrue:ifFalse:[])) = do
+  constraint <- constraintForType cond
+  (ExpList newExp) <- tryEvalExpression e cond
+  case checkConstraint e newExp constraint of
+   Right _ -> tryEvalExpression e ifTrue
+   Left  _ -> tryEvalExpression e ifFalse
+  where
+    constraintForType cond = case findConstructor cond of
+                              Just (Constructor _ _ _ constraint) -> return constraint
+                              _ -> return NoConstraint
+
+    findConstructor (ExpList ((ExpId expId):expArgs)) =
+      let (Type _ _ cs) = fromJust $ expId `Map.lookup` e
+       in findConstructor' cs expArgs
+
+    findConstructor' cs expArgs = find (findConstructor'' expArgs) cs
+    findConstructor'' expArgs (Constructor _ (Args args) _ _) =
+      all (==True) $ zipWith (match e) args expArgs
+
+tryEvalKeyword e (ExpId expId) = Left $ expId ++ ": invalid use of keyword."
+tryEvalKeyword e (ExpList (expHead:_)) = tryEvalKeyword e expHead
 
 -- | Evaluates a single symbol, such as a parameterless contructor or function.
 evalId :: Map String Toplevel -> String -> Either String Expression

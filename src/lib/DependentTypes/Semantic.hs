@@ -314,30 +314,51 @@ match e (ExpList _) (ExpId _) = False
 -- | Checks if the inferred types for type variables are valid.
 checkInferredTypes :: Map String Toplevel -> [Expression] -> Either String ()
 checkInferredTypes env exp = do
-  case checkInferredTypes' env (Map.empty :: Map String Toplevel)  exp of
+  case checkInferredTypes' Map.empty exp of
    Right _ -> return ()
    Left  e -> Left e
   where
-    -- TODO: finish checking inferred types.
+    checkInferredTypes' binds [ExpId expId] = return binds
+    checkInferredTypes' binds exp@((ExpId expId):expTail) = do
+      newBinds <- updatingForM binds expTail checkInferredTypes''
+      case expId `Map.lookup` env of
+       Just (Type _ _ cons) -> checkInferredCons newBinds cons exp
+       Just (Func sigs _) -> checkInferredFunc newBinds sigs exp
 
-    checkInferredTypes' :: Map String Toplevel -> Map String Toplevel -> [Expression] ->
-                           Either String (Map String Toplevel)
-    checkInferredTypes' env binds [ExpId _] = return binds
-    checkInferredTypes' env binds ((ExpId expId):expTail) = do
-      let (Type _ _ cons) = fromJust $ expId `Map.lookup` env
-       in updatingForM binds expTail checkInferredTypes''
-
-    updatingForM :: Map String Toplevel -> [Expression] ->
-                    (Map String Toplevel -> Expression -> Either String (Map String Toplevel)) ->
-                    Either String (Map String Toplevel)
     updatingForM binds [] fn = return binds
     updatingForM binds (e:es) fn = case fn binds e of
                                     Right newBinds -> updatingForM newBinds es fn
                                     Left  e        -> Left e
 
-    checkInferredTypes'' :: Map String Toplevel -> Expression -> Either String (Map String Toplevel)
     checkInferredTypes'' binds (ExpId expId) = return binds
-    checkInferredTypes'' binds (ExpList expList) = checkInferredTypes' env binds expList
+    checkInferredTypes'' binds (ExpList expList) = checkInferredTypes' binds expList
+
+    checkInferredCons binds cons exp@((ExpId expId):expTail) =
+      case find (\(Constructor name _ _ _) -> name == expId) cons of
+       Just c -> checkInferredCons' binds c exp
+       _      -> return binds -- types do not have inferred type variables, only constructors
+
+    checkInferredCons' binds (Constructor _ _ sig _) exp = checkInferredSig binds sig exp
+
+    checkInferredFunc binds sigs exp@((ExpId expId):expTail) = do
+      case find (\(name, _) -> name == expId) sigs of
+       Just (_, sig) -> checkInferredSig binds sig exp
+       _             -> Left expId
+
+    checkInferredSig binds (Signature sig) ((ExpId expId):expTail) =
+      case updatingForM binds (zip sig expTail) bindTypeVars of
+       Right newBinds -> return newBinds
+       Left _         -> Left expId
+
+    bindTypeVars binds (TypeId typeId, ExpId expId) = do
+      case typeId `Map.lookup` binds of
+       Just (Var (ExpId expBind)) -> if (expId `Map.lookup` env) == (expBind `Map.lookup` env)
+                                     then return binds
+                                     else Left expId
+       _                          -> if isAsciiLower $ head typeId
+                                     then return (typeId `Map.insert` (Var (ExpId expId)) $ binds)
+                                     else return binds
+    bindTypeVars binds (t, e) = return binds
 
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to the signature of a function being defined.

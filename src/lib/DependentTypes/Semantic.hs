@@ -185,13 +185,19 @@ undefinedId :: Map String Toplevel -> [(String, Signature)] -> Args -> String ->
 undefinedId e ss (Args args) expId = expId `notElem` keywords &&
                                      expId `Map.notMember` e &&
                                      all notEqExpId args &&
-                                     all notEqExpId' ss
+                                     all notEqExpId' ss &&
+                                     all notInfersExpId ss
   where
     notEqExpId arg = case arg of
                       ExpId argExp   -> argExp /= expId
                       ExpList argExp -> all notEqExpId argExp
 
     notEqExpId' (sigName, _) = sigName /= expId
+
+    notInfersExpId (_, Signature ss) = all notInfersExpId' ss
+
+    notInfersExpId' (TypeId typeId) = typeId /= expId
+    notInfersExpId' (DepType _ exp) = all notEqExpId exp
 
 -- | Checks if a symbol is being called with the wrong number/type of arguments.
 checkArgs :: Map String Toplevel -> [(String, Signature)] -> Args -> Expression -> Either String ()
@@ -312,11 +318,8 @@ match e (ExpList (argId:_)) (ExpList (expId@(ExpId exp):_)) =
 match e (ExpList _) (ExpId _) = False
 
 -- | Checks if the inferred types for type variables are valid.
-checkInferredTypes :: Map String Toplevel -> [Expression] -> Either String ()
-checkInferredTypes env exp = do
-  case checkInferredTypes' Map.empty exp of
-   Right _ -> return ()
-   Left  e -> Left e
+checkInferredTypes :: Map String Toplevel -> [Expression] -> Either String (Map String Toplevel)
+checkInferredTypes env exp = checkInferredTypes' Map.empty exp
   where
     checkInferredTypes' binds [ExpId expId] = return binds
     checkInferredTypes' binds exp@((ExpId expId):expTail) = do

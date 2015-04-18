@@ -89,7 +89,7 @@ isTypeAssignable m [] [] = False
 isTypeAssignable m [ExpId expId] [TypeId typeId] =
   case expId `Map.lookup` m of
    Just (Type typeName _ cons)         -> typeName == typeId || isAsciiLower (head typeId)
-   Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
+   Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId || isAsciiLower (head typeId)
    Just (Var _)                        -> True
    Nothing                             -> True
 isTypeAssignable m [ExpId expId] [DepType typeId _] =
@@ -425,7 +425,7 @@ evalId :: Map String Toplevel -> String -> Either String Expression
 evalId e expId =
   case expId `Map.lookup` e of
    Just (Type _ _ _) -> Right (ExpId expId)
-   Just (Func _ [l])  -> evalLambda e l expId
+   Just (Func _ [l]) -> evalLambda e l expId
    Just (Var exp)    -> Right exp
    _                 -> Left $ expId ++ ": undefined symbol"
   where
@@ -456,7 +456,8 @@ bindVars e (Args ((ExpId name):as)) (exp:exps) =
   then bindVars e (Args as) exps
   else name `Map.insert` Var exp $ bindVars e (Args as) exps
 bindVars e (Args ((ExpList expList):as)) ((ExpList exp):exps) =
-  bindVars e (Args $ tail expList) (tail exp) `Map.union` bindVars e (Args as) exps
+  let newEnv = bindVars e (Args $ tail expList) (tail exp)
+   in bindVars newEnv (Args as) exps
 
 -- | Checks if a symbol is defined in the environment, but it's not a variable.
 memberAndNotVar :: String -> Map String Toplevel -> Bool

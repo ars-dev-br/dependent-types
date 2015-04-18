@@ -39,7 +39,7 @@ insert = oList ++
 
 insertOutput = "(ocons zero (ocons (suc zero)\
                                  \ (onil (BLessOrEqual (bounded (suc zero)) upperBound))\
-                                 \ (BLessOrEqual lowerBound (bounded (suc zero))))\
+                                 \ (BLessOrEqual (bounded zero) (bounded (suc zero))))\
                      \ (BLessOrEqual lowerBound (bounded zero)))."
 
 lessOrEqual = "type LessOrEqual : Nat -> Nat -> Type where\n\
@@ -130,12 +130,24 @@ depTypeTests = testGroup "Dependent Types"
        Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
+  , testCase "Calling pairAdd correctly" $
+    do
+      env <- fromList $ lists
+      case parse (pairAdd ++
+                 "print (pairAdd (cons (suc zero) (cons (suc (suc zero)) nil)) \
+                                \(cons (suc zero) (cons (suc zero) nil))).") of
+       Right p -> evalProgram
+                  (assertEqual "(cons (suc (suc zero)) (cons (suc (suc (suc zero))) nil)).")
+                  env
+                  p
+       Left  e -> assertFailure $ show e
+
   , testCase "Calling pairAdd with lists of wrong type" $
     do
       env <- fromList $ lists ++ booleans
       case parse (pairAdd ++
                   "print (pairAdd (cons false nil) (cons true nil)).") of
-       Right p -> assertException env p
+       Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Calling pairAdd with lists of different sizes" $
@@ -143,7 +155,7 @@ depTypeTests = testGroup "Dependent Types"
       env <- fromList $ lists ++ booleans
       case parse (pairAdd ++
                   "print (pairAdd (cons zero (cons zero nil)) (cons zero nil)).") of
-       Right p -> assertException env p
+       Right p -> evalQuietProgram env p
        Left  e -> assertFailure $ show e
 
   , testCase "Odd and Even type definitions" $

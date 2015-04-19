@@ -265,8 +265,8 @@ checkCallEnv e exp@((ExpId expId):_) =
   else case expId `Map.lookup` e of
         Just (Type name (Signature ss) cons) -> checkCallCons e cons exp
         Just (Func [(_, (Signature ss))] _) -> do
-                 checkInferredTypes e exp
-                 when (not $ isTypeAssignable e exp ss) $ Left expId
+                 newEnv <- checkInferredTypes e exp
+                 when (not $ isTypeAssignable (e `Map.union` newEnv) exp ss) $ Left expId
         Just (Var exp) -> Left expId
         Nothing -> Left expId
 checkCallEnv e ((ExpList expList):[]) = checkCallEnv e expList
@@ -277,9 +277,9 @@ checkCallCons :: Map String Toplevel -> [Constructor] -> [Expression] -> Either 
 checkCallCons e cs exp@((ExpId expId):_) = forM_ cs checkCallCons'
   where
     checkCallCons' (Constructor name _ (Signature ss) constraint) | name == expId = do
-      checkInferredTypes e exp
-      checkConstraint e exp constraint
-      when (name == expId && (not $ isTypeAssignable e exp ss)) $ Left expId
+      newEnv <- checkInferredTypes e exp
+      checkConstraint (e `Map.union` newEnv) exp constraint
+      when (name == expId && (not $ isTypeAssignable (e `Map.union` newEnv) exp ss)) $ Left expId
                                                                   | otherwise = return ()
 
 -- | Checks if a constructor call obeys a constraint.
@@ -332,7 +332,9 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
       newBinds <- updatingForM binds expTail checkInferredTypes''
       case expId `Map.lookup` env of
        Just (Type _ _ cons) -> checkInferredCons newBinds cons exp
-       Just (Func sigs _) -> checkInferredFunc newBinds sigs exp
+       Just (Func sigs _)   -> checkInferredFunc newBinds sigs exp
+       _                    -> return binds
+    checkInferredTypes' binds [ExpList expList] = checkInferredTypes' binds expList
 
     updatingForM binds [] fn = return binds
     updatingForM binds (e:es) fn = case fn binds e of
@@ -414,19 +416,23 @@ evalExpression e exp =
 
 -- | Tries to evaluate an expression.
 tryEvalExpression :: Map String Toplevel -> Expression -> Either String Expression
-tryEvalExpression e exp@(ExpId expId) =
-  if undefinedId e [] (Args []) expId
+tryEvalExpression e exp@(ExpId expId) = do
+  newEnv <- checkInferredTypes e [exp]
+  newEnv <- return (e `Map.union` newEnv)
+  if undefinedId newEnv [] (Args []) expId
     then Left $ expId ++ ": undefined symbol"
-    else case checkIdEnv e expId of
-          Right () -> evalId e expId
+    else case checkIdEnv newEnv expId of
+          Right () -> evalId newEnv expId
           Left _   -> Left $ expId ++ ": invalid arguments"
 tryEvalExpression e (ExpList [exp]) = tryEvalExpression e exp
-tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) =
+tryEvalExpression e exp@(ExpList ((ExpId expId):expTail)) = do
+  newEnv <- checkInferredTypes e [exp]
+  newEnv <- return (e `Map.union` newEnv)
   if expId `elem` keywords
-  then tryEvalKeyword e exp
-  else case forM expTail $ tryEvalExpression e of
-        Right expArgs -> case checkCallEnv e $ (ExpId expId):expArgs of
-                          Right () -> evalList e $ (ExpId expId):expArgs
+  then tryEvalKeyword newEnv exp
+  else case forM expTail $ tryEvalExpression newEnv of
+        Right expArgs -> case checkCallEnv newEnv $ (ExpId expId):expArgs of
+                          Right () -> evalList newEnv $ (ExpId expId):expArgs
                           Left err -> Left $ err ++ ": invalid arguments"
         Left  name    -> Left name
 

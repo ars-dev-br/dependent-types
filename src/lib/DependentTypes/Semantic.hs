@@ -76,12 +76,14 @@ checkConsSignature env name (Signature ss) = do
 
 -- | Checks if a type name refers to an existing type with the same arity.
 isValidType :: Map String Toplevel -> TypeDef -> Bool
-isValidType m (TypeId name) = case name `Map.lookup` m of
-                               Just (Type n (Signature [x]) _) -> n == name
-                               _                               -> isAsciiLower (head name)
-isValidType m (DepType name es) = case name `Map.lookup` m of
-                                   Just (Type n (Signature ts) _) -> n == name && isDepTypeAssignable m es ts
-                                   _                              -> isAsciiLower (head name)
+isValidType m (TypeId name) =
+  case name `Map.lookup` m of
+   Just (Type n (Signature [x]) _) -> n == name
+   _                               -> isAsciiLower (head name)
+isValidType m (DepType name es) =
+  case name `Map.lookup` m of
+   Just (Type n (Signature ts) _) -> n == name && isDepTypeAssignable m es ts
+   _                              -> isAsciiLower (head name)
 
 -- | Checks if a list of expressions is assignable to a list of types.
 isTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
@@ -115,7 +117,8 @@ isDepTypeAssignable :: Map String Toplevel -> [Expression] -> [TypeDef] -> Bool
 isDepTypeAssignable m [] [] = False
 isDepTypeAssignable m [ExpId expId] ((TypeId typeId):ts) =
   case expId `Map.lookup` m of
-   Just (Type typeName _ cons)         -> typeName == typeId || (expId == typeName && typeId == "Type")
+   Just (Type typeName _ cons)         -> typeName == typeId ||
+                                          (expId == typeName && typeId == "Type")
    Just (Func [(_, (Signature ss))] _) -> last ss == TypeId typeId
    Just (Var _)                        -> True
    Nothing                             -> True
@@ -130,7 +133,8 @@ isDepTypeAssignable m es ts = 1 + length es == length ts &&
 checkFuncSignature :: Env -> [(String, Signature)] -> IO ()
 checkFuncSignature env ss = forM_ ss $ \s -> checkFuncSignature' env s
   where
-    checkFuncSignature' env (name, Signature []) = error $ name ++ ": " ++ "Function must have signature"
+    checkFuncSignature' env (name, Signature []) =
+      error $ name ++ ": " ++ "Function must have signature"
     checkFuncSignature' env (name, Signature ss) = do
       forM_ ss $ \s -> do
         e <- readIORef env
@@ -374,7 +378,8 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
      case expId `Map.lookup` env of
       Just (Type name (Signature ss) cons) | name == expId -> return $ last ss
                                            | otherwise -> do
-        (Constructor _ _ (Signature sigs) _)  <- find (\(Constructor name _ _ _) -> name == expId) cons
+        (Constructor _ _ (Signature sigs) _)  <-
+          find (\(Constructor name _ _ _) -> name == expId) cons
         return $ last sigs
       Just (Func ss _) -> do
         (_, (Signature sigs)) <- find (\(name, _) -> name == expId) ss

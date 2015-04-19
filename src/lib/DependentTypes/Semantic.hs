@@ -260,7 +260,9 @@ checkCallEnv e exp@((ExpId expId):_) =
   then Right ()
   else case expId `Map.lookup` e of
         Just (Type name (Signature ss) cons) -> checkCallCons e cons exp
-        Just (Func [(_, (Signature ss))] _) -> when (not $ isTypeAssignable e exp ss) $ Left expId
+        Just (Func [(_, (Signature ss))] _) -> do
+                 checkInferredTypes e exp
+                 when (not $ isTypeAssignable e exp ss) $ Left expId
         Just (Var exp) -> Left expId
         Nothing -> Left expId
 checkCallEnv e ((ExpList expList):[]) = checkCallEnv e expList
@@ -353,7 +355,7 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
        Right newBinds -> return newBinds
        Left _         -> Left expId
 
-    bindTypeVars binds (TypeId typeId, ExpId expId) = do
+    bindTypeVars binds (TypeId typeId, ExpId expId) =
       case typeId `Map.lookup` binds of
        Just (Var (ExpId expBind)) -> if (expId `Map.lookup` env) == (expBind `Map.lookup` env)
                                      then return binds
@@ -361,7 +363,34 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
        _                          -> if isAsciiLower $ head typeId
                                      then return (typeId `Map.insert` (Var (ExpId expId)) $ binds)
                                      else return binds
+    bindTypeVars binds (DepType name typeExp, ExpList exp@((ExpId expId):expTail)) =
+      case expressionSignature expId of
+       Just (TypeId typeId)              -> return binds
+       Just (DepType expName expTypeExp) -> compareTypeExp binds typeExp expTypeExp
+       _                                 -> Left "bar"
     bindTypeVars binds (t, e) = return binds
+
+    expressionSignature expId =
+     case expId `Map.lookup` env of
+      Just (Type name (Signature ss) cons) | name == expId -> return $ last ss
+                                           | otherwise -> do
+        (Constructor _ _ (Signature sigs) _)  <- find (\(Constructor name _ _ _) -> name == expId) cons
+        return $ last sigs
+      Just (Func ss _) -> do
+        (_, (Signature sigs)) <- find (\(name, _) -> name == expId) ss
+        return $ last sigs
+      Nothing -> Nothing
+
+    compareTypeExp binds [] [] = return binds
+    compareTypeExp binds ((ExpId typeId):ts) ((ExpId expId):es) =
+      if not $ isAsciiLower (head typeId)
+      then case expId `Map.lookup` binds of
+            Just (Var (ExpId bindId)) -> if (typeId `Map.lookup` env) == (bindId `Map.lookup` env)
+                                         then compareTypeExp binds ts es
+                                         else Left expId
+            _                         -> compareTypeExp binds ts es
+      else compareTypeExp binds ts es
+    compareTypeExp binds (t:ts) (e:es) = compareTypeExp binds ts es
 
 -- | Checks if a call is being made with the wrong number/type of arguments
 -- according to the signature of a function being defined.

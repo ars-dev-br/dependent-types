@@ -147,7 +147,15 @@ depTypeTests = testGroup "Dependent Types"
       env <- fromList $ lists ++ booleans
       case parse (pairAdd ++
                   "print (pairAdd (cons false nil) (cons true nil)).") of
-       Right p -> evalQuietProgram env p
+       Right p -> assertException env p
+       Left  e -> assertFailure $ show e
+
+  , testCase "Calling pairAdd with invalid lists" $
+    do
+      env <- fromList $ lists ++ booleans
+      case parse (pairAdd ++
+                  "print (pairAdd (cons zero (cons zero nil)) (cons true (cons zero nil))).") of
+       Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
   , testCase "Calling pairAdd with lists of different sizes" $

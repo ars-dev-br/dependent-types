@@ -349,17 +349,28 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
        Just c -> checkInferredCons' binds c exp
        _      -> return binds -- types do not have inferred type variables, only constructors
 
-    checkInferredCons' binds (Constructor _ _ sig _) exp = checkInferredSig binds sig exp
+    checkInferredCons' binds (Constructor _ _ sig _) exp = checkInferredConsSig binds sig exp
 
-    checkInferredFunc binds sigs exp@((ExpId expId):expTail) = do
+    checkInferredFunc binds sigs exp@((ExpId expId):expTail) =
       case find (\(name, _) -> name == expId) sigs of
-       Just (_, sig) -> checkInferredSig binds sig exp
+       Just (_, sig) -> checkInferredFuncSig binds sig exp
        _             -> Left expId
 
-    checkInferredSig binds (Signature sig) ((ExpId expId):expTail) =
+    checkInferredConsSig  binds (Signature sig) ((ExpId expId):expTail) =
       case updatingForM binds (zip sig expTail) bindTypeVars of
        Right newBinds -> return newBinds
        Left _         -> Left expId
+
+    checkInferredFuncSig binds (Signature sig) ((ExpId expId):expTail) = do
+      newBinds <- forM (zip sig expTail) (bindTypeVars binds)
+      unless (all (==True) (map (mapEq (head newBinds)) newBinds)) $ Left expId
+      case updatingForM binds (zip sig expTail) bindTypeVars of
+       Right newBinds -> return newBinds
+       Left _         -> Left expId
+
+    mapEq mapA mapB = all (\k -> k `Map.notMember` mapB ||
+                                 k `Map.lookup` mapA == k `Map.lookup` mapB)
+                      (Map.keys mapA)
 
     bindTypeVars binds (TypeId typeId, ExpId expId) =
       case typeId `Map.lookup` binds of
@@ -408,7 +419,7 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
                                          then compareTypeExp binds ts es
                                          else Left expId
             _                         -> compareTypeExp binds ts es
-    compareTypeExp binds ((ExpId typeId):ts) ((ExpList expList):es) = do
+    compareTypeExp binds ((ExpId typeId):ts) ((ExpList expList):es) =
       if isAsciiLower (head typeId) && typeId `Map.member` binds
       then case tryEvalExpression (binds `Map.union` env) (ExpList expList) of
             Right exp -> compareTypeExp (typeId `Map.insert` (Var exp) $ binds) ts es
@@ -526,7 +537,4 @@ memberAndNotVar arg e = case arg `Map.lookup` e of
 
 -- | Converts Expressions to a String.
 showExpressions :: [Expression] -> String
-showExpressions exps = (intercalate "; " $ map showExpression exps) ++ "."
-  where
-    showExpression (ExpId expId) = expId
-    showExpression (ExpList exps) = "(" ++ (unwords $ map showExpression exps) ++ ")"
+showExpressions exps = (intercalate "; " $ map show exps) ++ "."

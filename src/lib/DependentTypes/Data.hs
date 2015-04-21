@@ -57,7 +57,11 @@ newtype Args = Args [Expression]
 -- | Expressions to be executed.
 data Expression = ExpId String
                 | ExpList [Expression]
-                deriving (Show, Eq)
+                deriving (Eq)
+
+instance Show Expression where
+  show (ExpId expId) = expId
+  show (ExpList expList) = "(" ++ (unwords $ map show expList) ++ ")"
 
 -- | Type constructor constraint.
 data Constraint = Constraint Expression  -- ^ A constructor contrained by this expression.

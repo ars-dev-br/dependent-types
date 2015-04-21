@@ -163,7 +163,7 @@ depTypeTests = testGroup "Dependent Types"
       env <- fromList $ lists ++ booleans
       case parse (pairAdd ++
                   "print (pairAdd (cons zero (cons zero nil)) (cons zero nil)).") of
-       Right p -> evalQuietProgram env p
+       Right p -> assertException env p
        Left  e -> assertFailure $ show e
 
   , testCase "Odd and Even type definitions" $

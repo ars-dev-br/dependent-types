@@ -373,7 +373,12 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
       case expressionSignature expId of
        Just (TypeId typeId)              -> return binds
        Just (DepType expName expTypeExp) -> compareTypeExp binds typeExp expTypeExp
-       _                                 -> Left "bar"
+       _                                 -> return binds
+    bindTypeVars binds (DepType name typeExp, ExpId expId) =
+      case expressionSignature expId of
+       Just (TypeId typeId)              -> return binds
+       Just (DepType expName expTypeExp) -> compareTypeExp binds typeExp expTypeExp
+       _                                 -> return binds
     bindTypeVars binds (t, e) = return binds
 
     expressionSignature expId =
@@ -386,16 +391,28 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
       Just (Func ss _) -> do
         (_, (Signature sigs)) <- find (\(name, _) -> name == expId) ss
         return $ last sigs
+      Just _ -> Nothing
       Nothing -> Nothing
 
     compareTypeExp binds [] [] = return binds
     compareTypeExp binds ((ExpId typeId):ts) ((ExpId expId):es) =
-      if not $ isAsciiLower (head typeId)
+      if isAsciiLower (head typeId)
       then case expId `Map.lookup` binds of
+            Just _ -> compareTypeExp binds ts es
+            Nothing -> let newBinds = if expId /= typeId && expId `Map.member` env
+                                      then typeId `Map.insert` (Var (ExpId expId)) $ binds
+                                      else binds
+                        in compareTypeExp newBinds ts es
+      else case expId `Map.lookup` binds of
             Just (Var (ExpId bindId)) -> if (typeId `Map.lookup` env) == (bindId `Map.lookup` env)
                                          then compareTypeExp binds ts es
                                          else Left expId
             _                         -> compareTypeExp binds ts es
+    compareTypeExp binds ((ExpId typeId):ts) ((ExpList expList):es) = do
+      if isAsciiLower (head typeId) && typeId `Map.member` binds
+      then case tryEvalExpression (binds `Map.union` env) (ExpList expList) of
+            Right exp -> compareTypeExp (typeId `Map.insert` (Var exp) $ binds) ts es
+            Left err -> compareTypeExp binds ts es
       else compareTypeExp binds ts es
     compareTypeExp binds (t:ts) (e:es) = compareTypeExp binds ts es
 

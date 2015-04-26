@@ -1,0 +1,40 @@
+{- Simple type definitions. -}
+type Bool : Type where
+  false : Bool;
+  true  : Bool.
+
+type Nat : Type where
+  zero : Nat;
+  suc  : Nat -> Nat.
+
+{- Constants -}
+func six : Nat where
+  six = suc (suc (suc (suc (suc (suc zero))))).
+
+func seven : Nat where
+  seven = suc six.
+
+print six; seven.
+
+{- Functions with pattern matching. -}
+func not : Bool -> Bool where
+  not true  = false;
+  not false = true.
+
+print (not true); (not false).
+
+func add : Nat -> Nat -> Nat where
+  add x       zero = x;
+  add zero    y    = y;
+  add (suc x) y    = suc (add x y).
+
+print (add (suc (suc zero)) (suc (suc (suc zero)))).
+
+{- Mutually recursive functions. -}
+func isOdd : Nat -> Bool; isEven : Nat -> Bool where
+  isOdd  zero    = false;
+  isEven zero    = true;
+  isOdd  (suc x) = isEven x;
+  isEven (suc x) = isOdd x.
+
+print (isOdd (suc zero)).

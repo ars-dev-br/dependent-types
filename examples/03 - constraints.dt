@@ -1,0 +1,14 @@
+type Nat : Type where
+  zero : Nat;
+  suc  : Nat -> Nat.
+
+{- Types may have constraints. -}
+type LessOrEqual : Nat -> Nat -> Type where
+  lessZero zero    y       : Nat -> Nat -> (LessOrEqual zero y);
+  lessSuc  (suc x) (suc y) : Nat -> Nat -> (LessOrEqual (suc x) (suc y)) | LessOrEqual x y.
+
+{- This is a valid LessOrEqual value. -}
+print (lessSuc (suc zero) (suc (suc (suc zero)))).
+
+{- But this is not. -}
+print (lessSuc (suc (suc zero)) (suc zero)).

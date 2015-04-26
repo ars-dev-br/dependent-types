@@ -1,0 +1,50 @@
+type Nat : Type where
+  zero : Nat;
+  suc  : Nat -> Nat.
+
+type List : Nat -> Type -> Type where
+  nil  : (List zero a);
+  cons : a -> (List n a) -> (List (suc n) a).
+
+type LessOrEqual : Nat -> Nat -> Type where
+  lessZero zero    y       : Nat -> Nat -> (LessOrEqual zero y);
+  lessSuc  (suc x) (suc y) : Nat -> Nat -> (LessOrEqual (suc x) (suc y)) | LessOrEqual x y.
+
+type Bounded : Type where
+  lowerBound : Bounded;
+  upperBound : Bounded;
+  bounded    : Nat -> Bounded.
+
+{- A lifted version of LessOrEqual with total ordering. -}
+type BLessOrEqual : Bounded -> Bounded -> Type where
+  bLessLower lowerBound  y           : Bounded -> Bounded -> (BLessOrEqual lowerBound y);
+  bLessUpper x           upperBound  : Bounded -> Bounded -> (BLessOrEqual x upperBound);
+  bLessLift  (bounded x) (bounded y) : Bounded -> Bounded ->
+    (BLessOrEqual (bounded x) (bounded y)) | LessOrEqual x y.
+
+type OList : Bounded -> Bounded -> Type where
+  onil       : (BLessOrEqual l u) -> (OList l u);
+  ocons x xs : Nat -> (OList (bounded x) u) -> (BLessOrEqual l (bounded x)) -> (OList l u).
+
+func toList : (OList l u) -> (List n Nat) where
+  toList (onil z)       = nil;
+  toList (ocons x xs z) = cons x (toList xs).
+
+func insert : Nat -> (OList l u) -> (BLessOrEqual l (bounded x)) ->
+                (BLessOrEqual (bounded x) u) -> (OList l u) where
+  insert x (onil z) (BLessOrEqual l (bounded x)) (BLessOrEqual (bounded x) u) =
+    ocons x (onil (BLessOrEqual (bounded x) u)) (BLessOrEqual l (bounded x));
+  insert x (ocons y ys (BLessOrEqual l y)) (BLessOrEqual l (bounded x))
+      (BLessOrEqual (bounded x) u) =
+    match (LessOrEqual (suc x) (suc y))
+      (ocons x (ocons y ys (BLessOrEqual (bounded x) (bounded y))) (BLessOrEqual l (bounded x)))
+      (ocons y (insert x ys (BLessOrEqual (bounded y) (bounded x))
+             (BLessOrEqual (bounded x) u))
+             (BLessOrEqual l (bounded y))).
+
+print (toList (insert (suc zero)
+                      (insert zero (onil (bLessLower lowerBound upperBound))
+                              (bLessLower lowerBound (bounded zero))
+                              (bLessUpper (bounded zero) upperBound))
+                      (bLessLower lowerBound (bounded (suc zero)))
+                      (bLessUpper (bounded (suc zero)) upperBound))).

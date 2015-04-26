@@ -1,0 +1,30 @@
+type Bool : Type where
+  false : Bool;
+  true  : Bool.
+
+type Nat : Type where
+  zero : Nat;
+  suc  : Nat -> Nat.
+
+{- Lists contain their size as part of the type. -}
+type List : Nat -> Type -> Type where
+  nil  : (List zero a);
+  cons : a -> (List n a) -> (List (suc n) a).
+
+{- This size can be used as a variable in functions. -}
+func length : (List n a) -> Nat where
+  length list = n.
+
+print (length (cons false (cons true nil))).
+
+func add : Nat -> Nat -> Nat where
+  add x       zero = x;
+  add zero    y    = y;
+  add (suc x) y    = suc (add x y).
+
+func pairAdd : (List n Nat) -> (List n Nat) -> (List n Nat) where
+  pairAdd nil         nil         = nil;
+  pairAdd (cons x xs) (cons y ys) = cons (add x y) (pairAdd xs ys).
+
+{- A valid call to pairAdd must use lists of the same size. -}
+print (pairAdd (cons zero (cons zero nil)) (cons zero nil)).

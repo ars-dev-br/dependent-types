@@ -359,7 +359,7 @@ checkInferredTypes env exp = checkInferredTypes' Map.empty exp
     checkInferredConsSig  binds (Signature sig) ((ExpId expId):expTail) =
       case updatingForM binds (zip sig expTail) bindTypeVars of
        Right newBinds -> return newBinds
-       Left _         -> Left expId
+       Left _         -> Left (expId ++ ": invalid arguments")
 
     checkInferredFuncSig binds (Signature sig) ((ExpId expId):expTail) = do
       newBinds <- forM (zip sig expTail) (bindTypeVars binds)
